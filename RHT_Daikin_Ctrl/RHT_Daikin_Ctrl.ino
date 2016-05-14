@@ -7,7 +7,7 @@
 
   Commands          response                              description
   at                >OK
-  atrt              >R=rr,T=tt.tt,H=hh.hh                 Reading temperature/humidity, R=Rh;T=Temperature(C);H=Heat Index(C)
+  atrt              >R=rr,T=tt.tt,H=hh.hh,C=nn            Reading temperature/humidity, R=Rh;T=Temperature(C);H=Heat Index(C);C=Data Count(Number of data fetching from SHT3X)
   atc1              >OK                                   Cooling ON
   atm1              >OK                                   Dehumidifier ON
   atfN              >OK or >Err                           Set fan speed, N=1 ~ 6, default = 6
@@ -43,6 +43,7 @@ int daikin_fan = FAN_SETTING;
 // SHT3X reading tracking
 float currentTemp = 0;
 float currentRh = 0;
+unsigned int sht_read_count = 0;  // tracking the number of data fetching from SHT3X
 
 // tracking the sample interval
 elapsedMillis timeElapsed;
@@ -65,6 +66,9 @@ void setup() {
   // let serial console settle
   delay(3000);
 
+  // initialize IR module
+  irdaikin.begin();
+
   // default Daikin setting
   daikin_temp = TEMP_SETTING;
   daikin_fan = FAN_SETTING;
@@ -72,6 +76,7 @@ void setup() {
   // reset reading
   currentTemp = 0;
   currentRh = 0;
+  sht_read_count = 0;
 
   // reset sample tracking
   timeElapsed = (long) 10000;   // this initial value to force the first SHT3X reading
@@ -179,6 +184,7 @@ void loop()
     {
       currentTemp = readingTemp;
       currentRh = readingRh;
+      sht_read_count++;
     }     
   }
 
@@ -210,6 +216,8 @@ void loop()
         rsp += currentTemp;
         rsp += ",H=";
         rsp += heatIndex(currentTemp, currentRh);
+        rsp += ",C=";
+        rsp += sht_read_count;
 
         portOne.println(rsp);
       }
