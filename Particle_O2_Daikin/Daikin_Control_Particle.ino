@@ -22,7 +22,7 @@
 //   else if(Temp < T_TOO_LOW) = off
 #define RH_STD                  60.50
 #define TEMP_STD                25.00
-#define TEMP_TOO_LOW            23.50
+#define TEMP_TOO_LOW            23.70
 #define HEAT_INDEX_TOO_HIGH     28.00       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
 // avoid frequent ON-OFF mode switch
