@@ -16,22 +16,29 @@
 #include "elapsedMillis.h"
 
 // ambient environmental parameters
-// Rh-priority
-//   if(Rh >= RH_STD && Temp > T_STD) = dehumidifier
-//   else if(Temp > T_STD) = ac
-//   else if(Temp < T_TOO_LOW) = off
+// This RhT control is Rh-priority
 #define RH_STD                  60.50
+#define RH_HIGH                 65.00       // re-trigger the dehumudifier when the air conditioning is in COOLING mode
 #define TEMP_STD                25.00
-#define TEMP_TOO_LOW            23.70
+#define TEMP_TOO_LOW            23.60
 #define HEAT_INDEX_TOO_HIGH     28.00       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
+// time that allows OFF
+//   if the current time is outside this time window, once the AC is on, it will switch between COOLING and DEHUMIDIFIER
+//   during this time window, it is allowed to turn AC off
+#define OFFOK_BEGIN_HOUR        3
+#define OFFOK_BEGIN_MIN         30          // 3:30 AM
+#define OFFOK_END_HOUR          5
+#define OFFOK_END_MIN           30          // 5:30 AM
+
 // avoid frequent ON-OFF mode switch
-//   once it is off, no more control for KEEP_ONOFF_TIMER
+//   when the mode is switched, no more action is allowed before this timer is reached
 #define KEEP_ONOFF_TIMER        25          // in munutes
 
 // must off time
 //   this auto system cannot exceed MUST_OFF_TIMER
-//   turn off this timer is reached, another auto_on command is needed to restart the system
+//   once this timer is reached, the AC must be turned off 
+//   another daikin-auto command is needed to restart the system
 #define MUST_OFF_TIMER          720         // in minutes
 
 // status and control parameters
@@ -42,7 +49,7 @@
 #define IR_REPEAT               3
 #define IR_REPEAT_DELAY         2000
 
-bool rhtDisabled = false;       // overall system switch
+bool rhtDisabled = true;        // overall system switch
 
 int currentMode = MODE_OFF;
 elapsedMillis elapsed_must_off_timer;
@@ -82,12 +89,14 @@ void setup() {
     timeElapsed = 0;
     timeElapsedSyncTime = 0;
     
-    // maximize the stat control timer to avoid any triggers of control
+    // maximize must-off timer to ensure the initialized state is not triggering anything
     elapsed_must_off_timer = MUST_OFF_TIMER * (long) 60000;
-    elapsed_keep_onoff_timer = KEEP_ONOFF_TIMER * (long) 60000;
     
-    // system is by default on
-    rhtDisabled = false;
+    // zero the no-onoff timer to avoid any sudden action
+    elapsed_keep_onoff_timer = 0;
+    
+    // system is by default off until the first enable command is sent in
+    rhtDisabled = true;
 
     // log the event
     Particle.publish("o2sensor", "RhT Control System Initialized");
@@ -99,7 +108,7 @@ void daikin_ac_on()
     unsigned int repeat;
     
     // send to log
-    Particle.publish("o2sensor", "turn on AC");
+    Particle.publish("o2sensor", "switch to cooling");
     
     // repeatly sending commands
     for(repeat = 0; repeat < IR_REPEAT; repeat++)
@@ -175,7 +184,7 @@ void daikin_off()
 void loop() 
 {
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // convert stat timers
+    // Convert stat timers
     // ---------------------------------------------------------------------------------------------------------------------------------
     
     // convert the time of the last command sent to minutes
@@ -196,7 +205,7 @@ void loop()
         timeElapsed = 0;              // reset the counter to 0 so the counting starts over...
         
         // debugging area
-        //Particle.publish("o2sensor", String(elapsed_must_off_timer));
+        //Particle.publish("o2sensor", String(Time.hour()) + ":" + String(Time.minute()));
     }
     
     // daily time sync
@@ -206,6 +215,23 @@ void loop()
         timeElapsedSyncTime = 0;
     }
   
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Check OFFOK window
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    bool offOK;
+    unsigned int minutesOfToday = Time.hour() * 60 + Time.minute();
+    unsigned int minutesOfWindowBegin = OFFOK_BEGIN_HOUR * 60 + OFFOK_BEGIN_MIN;
+    unsigned int minutesOfWindowEnd = OFFOK_END_HOUR * 60 + OFFOK_END_MIN;
+    
+    if(minutesOfToday >= minutesOfWindowBegin && minutesOfToday <= minutesOfWindowEnd)
+    {
+        offOK = true;
+    }
+    else
+    {
+        offOK = false;
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Processing incoming UART commands
     // ---------------------------------------------------------------------------------------------------------------------------------
@@ -321,6 +347,10 @@ void loop()
                     {
                         txtOutput += ", NO-ONOFF";
                     }
+                    else if(offOK == true)
+                    {
+                        txtOutput += ", OFF-OK";
+                    }
                     
                     // publish it
                     Particle.publish("o2sensor", txtOutput);
@@ -377,20 +407,34 @@ void loop()
                 }
                 else if(currentMode == MODE_COOLING)
                 {
-                    if(((float) currentTemp) < ((float) TEMP_TOO_LOW))      // if(Temp < T_TOO_LOW) = off
-                    {
-                        daikin_off();
-                    }
-                    else if((float) currentRh >= (float) RH_STD)            // else if(Rh > RH_STD) = dehumidifier
+                    if((float) currentRh >= (float) RH_HIGH)                // else if(Rh > RH_HIGH) = dehumidifier
                     {
                         daikin_dehumidifier_on();
+                    }
+                    else if(((float) currentTemp) < ((float) TEMP_TOO_LOW)) // if(Temp < T_TOO_LOW) : this should not happen since the temp is controlled
+                    {
+                        if(offOK)
+                        {
+                            daikin_off();                                   // if this really happens and it is OK to off, then off
+                        }
+                        else
+                        {
+                            daikin_ac_on();                                 // this happens only when the mode is changed manully outside this auto control
+                        }
                     }
                 }
                 else    // MODE_DEHUMIDIFIER
                 {
-                    if(((float) currentTemp) < ((float) TEMP_TOO_LOW))      // if(Temp < T_TOO_LOW) = off
+                    if(((float) currentTemp) < ((float) TEMP_TOO_LOW))      // if(Temp < T_TOO_LOW) =
                     {
-                        daikin_off();
+                        if(offOK)
+                        {
+                            daikin_off();                                   // if OK to off, then off
+                        }
+                        else
+                        {
+                            daikin_ac_on();                                 // switch to cooling mode so the temperature is re-controlled
+                        }
                     }
                     else if(((float) currentRh < (float) RH_STD) &&         // else if(Rh < RH_STD && Temp > T_STD) = ac
                             ((float) currentTemp) > ((float) TEMP_STD))
