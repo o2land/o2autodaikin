@@ -16,12 +16,19 @@
 #include "elapsedMillis.h"
 
 // ambient environmental parameters
-// This RhT control is Rh-priority
-#define RH_STD                  60.50
-#define RH_HIGH                 65.00       // re-trigger the dehumudifier when the air conditioning is in COOLING mode
+// Note: the default cooling temperature is set to 24.00 in RHT_Daikin_Ctrl.ino
+//
+// if off, T > STD = ac, else R > STD = de
+// if ac, T <= STD, consider mode change
+//                 R > STD = de
+// if de, T > HIGH, mode change
+
 #define TEMP_STD                25.00
-#define TEMP_TOO_LOW            23.60
-#define HEAT_INDEX_TOO_HIGH     28.00       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
+#define TEMP_HIGH               27.00
+#define RH_STD                  60.50
+
+#define TEMP_TOO_LOW            23.75
+#define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
 // time that allows OFF
 //   if the current time is outside this time window, once the AC is on, it will switch between COOLING and DEHUMIDIFIER
@@ -394,50 +401,61 @@ void loop()
                 
                 if(currentMode == MODE_OFF)
                 {
-                    // Rh-priority
-                    if(((float) currentRh >= (float) RH_STD) &&             // if(Rh >= RH_STD && Temp > T_STD) = dehumidifier
-                       ((float) currentTemp) > ((float) TEMP_STD))
+                    if((float) currentTemp > (float) TEMP_STD)
                     {
-                        daikin_dehumidifier_on();
-                    }
-                    else if(((float) currentTemp) > ((float) TEMP_STD))     // else if(Temp > T_STD) = ac
-                    {
+                        // ac-priority
                         daikin_ac_on();
                     }
+                    else
+                    {
+                        // Rh-priority
+                        if((float) currentRh > (float) RH_STD)
+                        {
+                            daikin_dehumidifier_on();
+                        }
+                    }
                 }
+                
+                // .....................................................
+                
                 else if(currentMode == MODE_COOLING)
                 {
-                    if((float) currentRh >= (float) RH_HIGH)                // else if(Rh > RH_HIGH) = dehumidifier
+                    if((float) currentTemp <= (float) TEMP_STD)                 // consider mode change
                     {
-                        daikin_dehumidifier_on();
-                    }
-                    else if(((float) currentTemp) < ((float) TEMP_TOO_LOW)) // if(Temp < T_TOO_LOW) : this should not happen since the temp is controlled
-                    {
-                        if(offOK)
+                        if((float) currentRh > (float) RH_STD)
                         {
-                            daikin_off();                                   // if this really happens and it is OK to off, then off
+                            daikin_dehumidifier_on();
                         }
-                        else
+                        else if((float) currentTemp <= (float) TEMP_TOO_LOW)    // this should not happen since the temp is controlled
                         {
-                            daikin_ac_on();                                 // this happens only when the mode is changed manully outside this auto control
+                            if(offOK)
+                            {
+                                daikin_off();                                   // if this really happens and it is OK to off, then off
+                            }
+                            else
+                            {
+                                daikin_ac_on();                                 // this happens only when the mode is changed manully outside this auto control
+                            }
                         }
                     }
                 }
+                
+                // .....................................................
+                
                 else    // MODE_DEHUMIDIFIER
                 {
-                    if(((float) currentTemp) < ((float) TEMP_TOO_LOW))      // if(Temp < T_TOO_LOW) =
+                    if((float) currentTemp <= (float) TEMP_TOO_LOW)             // temp  too low, happens when it is very humid
                     {
                         if(offOK)
                         {
-                            daikin_off();                                   // if OK to off, then off
+                            daikin_off();                                       // if OK to off, then off
                         }
                         else
                         {
-                            daikin_ac_on();                                 // switch to cooling mode so the temperature is re-controlled
+                            daikin_ac_on();                                     // switch to cooling mode so the temperature is re-controlled
                         }
                     }
-                    else if(((float) currentRh < (float) RH_STD) &&         // else if(Rh < RH_STD && Temp > T_STD) = ac
-                            ((float) currentTemp) > ((float) TEMP_STD))
+                    else if((float) currentTemp > (float) TEMP_HIGH)            // mode change
                     {
                         daikin_ac_on();
                     }
