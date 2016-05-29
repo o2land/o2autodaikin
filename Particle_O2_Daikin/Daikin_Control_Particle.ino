@@ -27,7 +27,7 @@
 #define TEMP_HIGH               27.00
 #define RH_STD                  60.50
 
-#define TEMP_TOO_LOW            23.75
+#define TEMP_TOO_LOW            23.95
 #define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
 // time that allows OFF
@@ -61,6 +61,7 @@ bool rhtDisabled = true;        // overall system switch
 int currentMode = MODE_OFF;
 elapsedMillis elapsed_must_off_timer;
 elapsedMillis elapsed_keep_onoff_timer;
+elapsedMillis elapsed_exterem_cond_timer;
 
 String recvLine = "";
 elapsedMillis timeElapsed;
@@ -101,6 +102,9 @@ void setup() {
     
     // zero the no-onoff timer to avoid any sudden action
     elapsed_keep_onoff_timer = 0;
+    
+    // reset the extreme interval timer
+    elapsed_exterem_cond_timer = 0;
     
     // system is by default off until the first enable command is sent in
     rhtDisabled = true;
@@ -384,14 +388,22 @@ void loop()
         // auto control must be running during the allowed time period
         if(ignoranceTimerInMinutes < MUST_OFF_TIMER)
         {
-            // extreme condition that could bypass the on-off timer
+            // extreme condition that could bypass the on-off timer (temperature change too fast)
             if(
                (currentMode == MODE_OFF && ((float) currentHI) >= ((float) HEAT_INDEX_TOO_HIGH)) ||             // heat index too high
                (currentMode != MODE_OFF && ((float) currentTemp) <= ((float) TEMP_TOO_LOW))                     // temperature too low
               )
             {
-                // maximize the on-off timer to allow the next contorl
-                elapsed_keep_onoff_timer = KEEP_ONOFF_TIMER * (long) 60000;
+                // extreme condition check can be triggered once a minute only
+                // otherwise, before the ambient environment is changed, the same factor repeately triggers the same mode change request
+                if(elapsed_exterem_cond_timer >= (long) 60000)
+                {
+                    // maximize the on-off timer to allow the next contorl
+                    elapsed_keep_onoff_timer = KEEP_ONOFF_TIMER * (long) 60000;
+                    
+                    // reset the extreme condition timer
+                    elapsed_exterem_cond_timer = 0;
+                }
             }
     
             // avoid frequent mode switching
