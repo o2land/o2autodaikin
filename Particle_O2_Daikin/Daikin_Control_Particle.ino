@@ -390,8 +390,9 @@ void loop()
         {
             // extreme condition that could bypass the on-off timer (temperature change too fast)
             if(
-               (currentMode == MODE_OFF && ((float) currentHI) >= ((float) HEAT_INDEX_TOO_HIGH)) ||             // heat index too high
-               (currentMode != MODE_OFF && ((float) currentTemp) <= ((float) TEMP_TOO_LOW))                     // temperature too low
+               ((currentMode == MODE_OFF && ((float) currentHI) >= ((float) HEAT_INDEX_TOO_HIGH)) && currentMode != MODE_COOLING)   // heat index too high AND not in AC
+               ||                                                                                                                   // OR
+               ((currentMode != MODE_OFF && ((float) currentTemp) <= ((float) TEMP_TOO_LOW)) && currentMode == MODE_DEHUMIDIFIER)   // temperature too low AND still in DE
               )
             {
                 // extreme condition check can be triggered once a minute only
