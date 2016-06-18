@@ -1,13 +1,17 @@
 /*
   Humidity and Temperature Reader with Daikin Air Conditioning Control
 
+  Adafruit SHT31-D module is used: https://www.adafruit.com/product/2857
+  D6 is assigned to SHT31-D RESET
+  
   For Sensirion SHT3x Arduino library, please refer to https://github.com/winkj/arduino-sht
   For the information of AltSoftSerial, please refer to https://www.pjrc.com/teensy/td_libs_AltSoftSerial.html
   For the information of Daikin IR Control, please refer to https://github.com/danny-source/Arduino_IRremote_Daikin
 
   Commands          response                              description
   at                >OK
-  atrt              >R=rr,T=tt.tt,H=hh.hh,C=nn            Reading temperature/humidity, R=Rh;T=Temperature(C);H=Heat Index(C);C=Data Count(Number of data fetching from SHT3X)
+  atrt              >R=rr,T=tt.tt,H=hh.hh,C=nn            Reading temperature/humidity, R=Rh;T=Temperature(C);H=Heat Index(C);C=Data Count(Number of data fetching from SHT31-D)
+  atrs              >OK                                   Issue SHT31-D hardware reset 
   atc1              >OK                                   Cooling ON
   atm1              >OK                                   Dehumidifier ON
   atfN              >OK or >Err                           Set fan speed, N=1 ~ 6, default = 6
@@ -26,6 +30,7 @@
 
 // Using Sensirion SHT3x for the accurate measurements
 SHT3X sht3x;
+#define SHT31D_RESET_PIN      6           // D6
 
 // for AltSoftSerial, TX/RX pins are hard coded: RX = digital pin 8, TX = digital pin 9 on Arduino Uno
 AltSoftSerial portOne;
@@ -59,6 +64,10 @@ void setup() {
   sht3x.setAddress(SHT3X::I2C_ADDRESS_44);
   sht3x.setAccuracy(SHT3X::ACCURACY_MEDIUM);
   Wire.begin();
+
+  // Setup SHT31-D Reset Control
+  pinMode(SHT31D_RESET_PIN, OUTPUT);
+  digitalWrite(SHT31D_RESET_PIN, HIGH);
 
   // Start the software serial port
   portOne.begin(38400);
@@ -129,6 +138,16 @@ void daikin_all_off()
   irdaikin.daikin_sendCommand();
 }
 
+/**
+ * Reset SHT31-D
+ */
+void sht31_d_reset()
+{
+  // Low active
+  digitalWrite(SHT31D_RESET_PIN, LOW);
+  delay(1000);
+  digitalWrite(SHT31D_RESET_PIN, HIGH);
+}
 
 /**
  * Heat Index Calculator
@@ -221,6 +240,10 @@ void loop()
 
         portOne.println(rsp);
       }
+      else if(recvLine == "atrs")
+      {
+        sht31_d_reset();
+      }      
       else if(recvLine == "atc1")
       {
         daikin_cooling_on();
