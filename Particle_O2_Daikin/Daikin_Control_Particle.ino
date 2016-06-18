@@ -23,7 +23,8 @@
 //                 R > STD = de
 // if de, T > HIGH, mode change
 
-#define TEMP_STD                25.00
+#define TEMP_STD_MODE1          25.00
+#define TEMP_STD_MODE2          26.00
 #define TEMP_HIGH               27.00
 #define RH_STD                  60.50
 
@@ -33,8 +34,8 @@
 // time that allows OFF
 //   if the current time is outside this time window, once the AC is on, it will switch between COOLING and DEHUMIDIFIER
 //   during this time window, it is allowed to turn AC off
-#define OFFOK_BEGIN_HOUR        3
-#define OFFOK_BEGIN_MIN         30          // 3:30 AM
+#define OFFOK_BEGIN_HOUR        4
+#define OFFOK_BEGIN_MIN         00          // 4:00 AM
 #define OFFOK_END_HOUR          5
 #define OFFOK_END_MIN           30          // 5:30 AM
 
@@ -75,6 +76,7 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
+bool current_temp_mode1 = true;
 bool current_fan_mode_on = false;
 
 // -----------------------------------------------------------------------------------
@@ -114,6 +116,10 @@ void setup() {
     // system is by default off until the first enable command is sent in
     rhtDisabled = true;
 
+    // other default state settings
+    current_temp_mode1 = true;
+    current_fan_mode_on = false;
+    
     // log the event
     Particle.publish("o2sensor", "RhT Control System Initialized");
 }
@@ -258,6 +264,11 @@ void loop()
     unsigned int ignoranceTimerInMinutes = elapsed_must_off_timer / (long) 60000;
     
     // ---------------------------------------------------------------------------------------------------------------------------------
+    // Standard Temperature is different in different time
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    float standard_temp = TEMP_STD_MODE1;
+
+    // ---------------------------------------------------------------------------------------------------------------------------------
     // Processing periodical commands
     // ---------------------------------------------------------------------------------------------------------------------------------
     
@@ -290,10 +301,40 @@ void loop()
     if(minutesOfToday >= minutesOfWindowBegin && minutesOfToday <= minutesOfWindowEnd)
     {
         offOK = true;
+        
+        // use temperature mode 2 during this time period
+        standard_temp = TEMP_STD_MODE2;
+        
+        // switch temperature mode if this is the new state
+        if(current_temp_mode1)
+        {
+            current_temp_mode1 = false;
+            
+            // set mode 2 temperature to the air conditioning      
+            Serial1.println("att25");
+            
+            // log the event
+            Particle.publish("o2sensor", "switch to temperature mode 2");
+        }
     }
     else
     {
         offOK = false;
+        
+        // use temperature mode 1 during this time period
+        standard_temp = TEMP_STD_MODE1;
+        
+        // switch temperature mode if this is the new state
+        if(!current_temp_mode1)
+        {
+            current_temp_mode1 = true;
+            
+            // set mode 2 temperature to the air conditioning      
+            Serial1.println("att24");
+            
+            // log the event
+            Particle.publish("o2sensor", "switch to temperature mode 1");
+        }
     }
 
     // ---------------------------------------------------------------------------------------------------------------------------------
@@ -467,7 +508,7 @@ void loop()
                 
                 if(currentMode == MODE_OFF)
                 {
-                    if((float) currentTemp > (float) TEMP_STD)
+                    if((float) currentTemp > (float) standard_temp)
                     {
                         // ac-priority
                         daikin_ac_on();
@@ -486,7 +527,7 @@ void loop()
                 
                 else if(currentMode == MODE_COOLING)
                 {
-                    if((float) currentTemp <= (float) TEMP_STD)                 // consider mode change
+                    if((float) currentTemp <= (float) standard_temp)            // consider mode change
                     {
                         if((float) currentRh > (float) RH_STD)
                         {
