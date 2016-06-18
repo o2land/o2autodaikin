@@ -243,6 +243,7 @@ void loop()
       else if(recvLine == "atrs")
       {
         sht31_d_reset();
+        portOne.println(">OK");
       }      
       else if(recvLine == "atc1")
       {

@@ -56,6 +56,9 @@
 #define IR_REPEAT               3
 #define IR_REPEAT_DELAY         2000
 
+#define TURN_FAN_ON             TRUE
+#define DONT_CTRL_FAN           FALSE
+
 bool rhtDisabled = true;        // overall system switch
 
 int currentMode = MODE_OFF;
@@ -72,7 +75,9 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
+bool current_fan_mode_on = false;
 
+// -----------------------------------------------------------------------------------
 void setup() {
     Serial1.begin(38400);
 
@@ -114,6 +119,38 @@ void setup() {
 }
 
 
+void fan_on()
+{
+    if(!current_fan_mode_on)
+    {
+        // control through IFTTT
+        Particle.publish("o2fan", "ON");
+        
+        // set the flag
+        current_fan_mode_on = TRUE;
+        
+        // log the event
+        Particle.publish("o2sensor", "Turn fan ON");
+    }
+}
+
+
+void fan_off()
+{
+    if(current_fan_mode_on)
+    {
+        // control through IFTTT
+        Particle.publish("o2fan", "OFF");
+        
+        // set the flag
+        current_fan_mode_on = FALSE;
+        
+        // log the event
+        Particle.publish("o2sensor", "Turn fan OFF");
+    }
+}
+
+
 void daikin_ac_on()
 {
     unsigned int repeat;
@@ -136,6 +173,9 @@ void daikin_ac_on()
     
     // reset the on-off control timer
     elapsed_keep_onoff_timer = 0;
+    
+    // fan off
+    fan_off();
 }
 
 
@@ -161,10 +201,13 @@ void daikin_dehumidifier_on()
     
     // reset the on-off control timer
     elapsed_keep_onoff_timer = 0;
+    
+    // fan off
+    fan_off();
 }
 
 
-void daikin_off()
+void daikin_off(bool turnFanOn)
 {
     unsigned int repeat;
     
@@ -186,6 +229,16 @@ void daikin_off()
     
     // reset the on-off control timer
     elapsed_keep_onoff_timer = 0;
+    
+    // FAN control
+    if(turnFanOn)
+    {
+        fan_on();
+    }
+    else
+    {
+        fan_off();
+    }
 }
 
 // =========================================================================================================
@@ -443,7 +496,7 @@ void loop()
                         {
                             if(offOK)
                             {
-                                daikin_off();                                   // if this really happens and it is OK to off, then off
+                                daikin_off(TURN_FAN_ON);                        // if this really happens and it is OK to off, then off and turn fan ON
                             }
                             else
                             {
@@ -461,7 +514,7 @@ void loop()
                     {
                         if(offOK)
                         {
-                            daikin_off();                                       // if OK to off, then off
+                            daikin_off(TURN_FAN_ON);                            // if OK to off, then off and turn fan ON
                         }
                         else
                         {
@@ -486,12 +539,12 @@ void loop()
             if(currentMode != MODE_OFF)
             {
                 // send off command now
-                daikin_off();
+                daikin_off(DONT_CTRL_FAN);
             }
             else if(lastCommandSentInMinutes >= KEEP_ONOFF_TIMER)
             {
                 // repeatedly sending off command for every KEEP_ONOFF_TIMER 
-                daikin_off();
+                daikin_off(DONT_CTRL_FAN);
             }
         }
         
@@ -525,7 +578,7 @@ void myHandler(const char *event, const char *data)
     }
     else if(ingredient.indexOf("daikin-off") > -1)
     {
-        daikin_off();
+        daikin_off(DONT_CTRL_FAN);
         
         // maximize the must-off-timer to stop the auto-control
         elapsed_must_off_timer = MUST_OFF_TIMER * (long) 60000;
