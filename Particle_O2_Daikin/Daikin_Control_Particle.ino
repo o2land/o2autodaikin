@@ -121,7 +121,10 @@ void setup() {
     // other default state settings
     current_temp_mode1 = true;
     current_fan_mode_on = false;
-    
+
+    // set mode 1 temperature to the air conditioning      
+    Serial1.println("att24");
+            
     // log the event
     Particle.publish("o2sensor", "RhT Control System Initialized");
 }
@@ -334,7 +337,7 @@ void loop()
         {
             current_temp_mode1 = true;
             
-            // set mode 2 temperature to the air conditioning      
+            // set mode 1 temperature to the air conditioning      
             Serial1.println("att24");
             
             // log the event
