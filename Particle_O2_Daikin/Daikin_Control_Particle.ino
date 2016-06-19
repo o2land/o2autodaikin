@@ -28,7 +28,9 @@
 #define TEMP_HIGH               27.00
 #define RH_STD                  60.50
 
-#define TEMP_TOO_LOW            23.95
+#define TEMP_TOO_LOW_MODE1      23.95
+#define TEMP_TOO_LOW_MODE2      25.00
+
 #define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
 // time that allows OFF
@@ -267,6 +269,7 @@ void loop()
     // Standard Temperature is different in different time
     // ---------------------------------------------------------------------------------------------------------------------------------
     float standard_temp = TEMP_STD_MODE1;
+    float too_low_temp = TEMP_TOO_LOW_MODE1;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Processing periodical commands
@@ -304,6 +307,7 @@ void loop()
         
         // use temperature mode 2 during this time period
         standard_temp = TEMP_STD_MODE2;
+        too_low_temp = TEMP_TOO_LOW_MODE2;
         
         // switch temperature mode if this is the new state
         if(current_temp_mode1)
@@ -323,6 +327,7 @@ void loop()
         
         // use temperature mode 1 during this time period
         standard_temp = TEMP_STD_MODE1;
+        too_low_temp = TEMP_TOO_LOW_MODE1;
         
         // switch temperature mode if this is the new state
         if(!current_temp_mode1)
@@ -486,7 +491,7 @@ void loop()
             if(
                ((currentMode == MODE_OFF && ((float) currentHI) >= ((float) HEAT_INDEX_TOO_HIGH)) && currentMode != MODE_COOLING)   // heat index too high AND not in AC
                ||                                                                                                                   // OR
-               ((currentMode != MODE_OFF && ((float) currentTemp) <= ((float) TEMP_TOO_LOW)) && currentMode == MODE_DEHUMIDIFIER)   // temperature too low AND still in DE
+               ((currentMode != MODE_OFF && ((float) currentTemp) <= ((float) too_low_temp)) && currentMode == MODE_DEHUMIDIFIER)   // temperature too low AND still in DE
               )
             {
                 // extreme condition check can be triggered once a minute only
@@ -533,7 +538,7 @@ void loop()
                         {
                             daikin_dehumidifier_on();
                         }
-                        else if((float) currentTemp <= (float) TEMP_TOO_LOW)    // this should not happen since the temp is controlled
+                        else if((float) currentTemp <= (float) too_low_temp)    // this should not happen since the temp is controlled
                         {
                             if(offOK)
                             {
@@ -551,7 +556,7 @@ void loop()
                 
                 else    // MODE_DEHUMIDIFIER
                 {
-                    if((float) currentTemp <= (float) TEMP_TOO_LOW)             // temp  too low, happens when it is very humid
+                    if((float) currentTemp <= (float) too_low_temp)             // temp  too low, happens when it is very humid
                     {
                         if(offOK)
                         {
