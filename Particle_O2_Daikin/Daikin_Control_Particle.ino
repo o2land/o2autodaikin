@@ -72,6 +72,7 @@ elapsedMillis elapsed_exterem_cond_timer;
 String recvLine = "";
 elapsedMillis timeElapsed;
 elapsedMillis timeElapsedSyncTime;
+elapsedMillis timeElapsedResetSht;
 
 float currentTemp = 0;
 float currentRh = 0;
@@ -105,6 +106,7 @@ void setup() {
     // reset elapsed timer
     timeElapsed = 0;
     timeElapsedSyncTime = 0;
+    timeElapsedResetSht = 0;
     
     // maximize must-off timer to ensure the initialized state is not triggering anything
     elapsed_must_off_timer = MUST_OFF_TIMER * (long) 60000;
@@ -280,10 +282,8 @@ void loop()
     
     if (timeElapsed > (long) 60000) 
     {
-        // send command of getting environmental information      
-        Serial1.println("atrt");
-
-        timeElapsed = 0;              // reset the counter to 0 so the counting starts over...
+        Serial1.println("atrt");        // send command of getting environmental information
+        timeElapsed = 0;                // reset the counter to 0 so the counting starts over...
         
         // debugging area
         //Particle.publish("o2sensor", String(Time.hour()) + ":" + String(Time.minute()));
@@ -294,6 +294,14 @@ void loop()
     {
         Particle.syncTime();
         timeElapsedSyncTime = 0;
+    }
+    
+    // reset SHT31-D every hour plus 30 seconds
+    // it seems SHT31-D some time freeze after constantly running for a few days
+    if(timeElapsedResetSht > (long) 3630000)
+    {
+        Serial1.println("atrs");        // send command to reset SHT31-D
+        timeElapsedResetSht = 0;
     }
   
     // ---------------------------------------------------------------------------------------------------------------------------------
