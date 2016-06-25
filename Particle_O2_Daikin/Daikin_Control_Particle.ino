@@ -128,7 +128,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-25");
 }
 
 
@@ -296,9 +296,9 @@ void loop()
         timeElapsedSyncTime = 0;
     }
     
-    // reset SHT31-D every hour plus 30 seconds
+    // reset SHT31-D every hour plus 7 seconds
     // it seems SHT31-D some time freeze after constantly running for a few days
-    if(timeElapsedResetSht > (long) 3630000)
+    if(timeElapsedResetSht > (long) 3607000)
     {
         Serial1.println("atrs");        // send command to reset SHT31-D
         timeElapsedResetSht = 0;
