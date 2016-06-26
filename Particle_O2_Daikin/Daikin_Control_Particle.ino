@@ -29,7 +29,7 @@
 #define RH_STD                  60.50
 
 #define TEMP_TOO_LOW_MODE1      23.95
-#define TEMP_TOO_LOW_MODE2      25.00
+#define TEMP_TOO_LOW_MODE2      24.95
 
 #define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
@@ -81,6 +81,7 @@ unsigned int currentReadCount = 0;
 
 bool current_temp_mode1 = true;
 bool current_fan_mode_on = false;
+bool ac_already_off = false;    // even during AC-OFF-OK period, it can be only one time AC off
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -123,6 +124,7 @@ void setup() {
     // other default state settings
     current_temp_mode1 = true;
     current_fan_mode_on = false;
+    ac_already_off = false;
 
     // set mode 1 temperature to the air conditioning      
     Serial1.println("att24");
@@ -553,7 +555,17 @@ void loop()
                         {
                             if(offOK)
                             {
-                                daikin_off(TURN_FAN_ON);                        // if this really happens and it is OK to off, then off and turn fan ON
+                                if(!ac_already_off)
+                                {
+                                    daikin_off(TURN_FAN_ON);                    // if this really happens and it is OK to off, then off and turn fan ON
+                                    
+                                    // ac can be off only once during the OFF-OK period, 
+                                    // otherwise, it indicates the ambient environment is extereme
+                                    ac_already_off = true;
+
+                                    // log the event
+                                    Particle.publish("o2sensor", "AC is allowrd to off once");
+                                }
                             }
                             else
                             {
@@ -571,7 +583,17 @@ void loop()
                     {
                         if(offOK)
                         {
-                            daikin_off(TURN_FAN_ON);                            // if OK to off, then off and turn fan ON
+                            if(!ac_already_off)
+                            {
+                                daikin_off(TURN_FAN_ON);                        // if OK to off, then off and turn fan ON
+                                    
+                                // ac can be off only once during the OFF-OK period, 
+                                // otherwise, it indicates the ambient environment is extereme
+                                ac_already_off = true;
+                                
+                                // log the event
+                                Particle.publish("o2sensor", "AC is allowrd to off once");
+                            }
                         }
                         else
                         {
@@ -629,6 +651,7 @@ void myHandler(const char *event, const char *data)
         
         // reenable the RHT control system
         rhtDisabled = false;
+        ac_already_off = false;
         
         // assume the current mode off
         currentMode = MODE_OFF;
