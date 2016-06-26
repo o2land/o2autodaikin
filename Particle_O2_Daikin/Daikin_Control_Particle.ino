@@ -130,7 +130,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-25");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-26");
 }
 
 
