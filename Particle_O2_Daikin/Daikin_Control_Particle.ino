@@ -553,19 +553,16 @@ void loop()
                         }
                         else if((float) currentTemp <= (float) too_low_temp)    // this should not happen since the temp is controlled
                         {
-                            if(offOK)
+                            if(offOK && (!ac_already_off))
                             {
-                                if(!ac_already_off)
-                                {
-                                    daikin_off(TURN_FAN_ON);                    // if this really happens and it is OK to off, then off and turn fan ON
-                                    
-                                    // ac can be off only once during the OFF-OK period, 
-                                    // otherwise, it indicates the ambient environment is extereme
-                                    ac_already_off = true;
+                                daikin_off(TURN_FAN_ON);                    // if this really happens and it is OK to off, then off and turn fan ON
+                                
+                                // ac can be off only once during the OFF-OK period, 
+                                // otherwise, it indicates the ambient environment is extereme
+                                ac_already_off = true;
 
-                                    // log the event
-                                    Particle.publish("o2sensor", "AC is allowrd to off once");
-                                }
+                                // log the event
+                                Particle.publish("o2sensor", "AC is allowed to be off once");
                             }
                             else
                             {
@@ -581,19 +578,16 @@ void loop()
                 {
                     if((float) currentTemp <= (float) too_low_temp)             // temp  too low, happens when it is very humid
                     {
-                        if(offOK)
+                        if(offOK && (!ac_already_off))
                         {
-                            if(!ac_already_off)
-                            {
-                                daikin_off(TURN_FAN_ON);                        // if OK to off, then off and turn fan ON
-                                    
-                                // ac can be off only once during the OFF-OK period, 
-                                // otherwise, it indicates the ambient environment is extereme
-                                ac_already_off = true;
+                            daikin_off(TURN_FAN_ON);                        // if OK to off, then off and turn fan ON
                                 
-                                // log the event
-                                Particle.publish("o2sensor", "AC is allowrd to off once");
-                            }
+                            // ac can be off only once during the OFF-OK period, 
+                            // otherwise, it indicates the ambient environment is extereme
+                            ac_already_off = true;
+                            
+                            // log the event
+                            Particle.publish("o2sensor", "AC is allowed to be off once");
                         }
                         else
                         {
