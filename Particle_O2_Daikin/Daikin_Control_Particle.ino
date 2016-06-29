@@ -49,7 +49,10 @@
 //   this auto system cannot exceed MUST_OFF_TIMER
 //   once this timer is reached, the AC must be turned off 
 //   another daikin-auto command is needed to restart the system
-#define MUST_OFF_TIMER          720         // in minutes
+#define MUSTOFFTIMER_REGULAR    720         // in minutes
+#define	MUSTOFFTIMER_SHORT		120			// if daikin-auto command is received during certain time of period, use a shorter timer
+#define	MUSTOFFTIMER_SHORT_BEGIN 17	  		// 5:00:00 PM
+#define	MUSTOFFTIMER_SHORT_END	20	  		// until 8:59:59 PM
 
 // status and control parameters
 #define MODE_OFF                0
@@ -63,6 +66,8 @@
 #define DONT_CTRL_FAN           FALSE
 
 bool rhtDisabled = true;        // overall system switch
+
+unsigned int must_off_timer = MUSTOFFTIMER_REGULAR;
 
 int currentMode = MODE_OFF;
 elapsedMillis elapsed_must_off_timer;
@@ -110,7 +115,7 @@ void setup() {
     timeElapsedResetSht = 0;
     
     // maximize must-off timer to ensure the initialized state is not triggering anything
-    elapsed_must_off_timer = MUST_OFF_TIMER * (long) 60000;
+    elapsed_must_off_timer = MUSTOFFTIMER_REGULAR * (long) 60000;
     
     // zero the no-onoff timer to avoid any sudden action
     elapsed_keep_onoff_timer = 0;
@@ -122,6 +127,7 @@ void setup() {
     rhtDisabled = true;
 
     // other default state settings
+    must_off_timer = MUSTOFFTIMER_REGULAR;
     current_temp_mode1 = true;
     current_fan_mode_on = false;
     ac_already_off = false;
@@ -130,7 +136,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-26");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-29");
 }
 
 
@@ -462,7 +468,7 @@ void loop()
                     {
                         txtOutput += ", RhT-Disabled";
                     }
-                    else if(ignoranceTimerInMinutes >= MUST_OFF_TIMER)
+                    else if(ignoranceTimerInMinutes >= must_off_timer)
                     {
                         txtOutput += ", MUST_OFF_STAT";
                     }
@@ -498,7 +504,7 @@ void loop()
     if(!rhtDisabled)
     {
         // auto control must be running during the allowed time period
-        if(ignoranceTimerInMinutes < MUST_OFF_TIMER)
+        if(ignoranceTimerInMinutes < must_off_timer)
         {
             // extreme condition that could bypass the on-off timer (temperature change too fast)
             if(
@@ -607,7 +613,7 @@ void loop()
         // ------------------------------------------------------------------------------------------
     
         // stop the system if the MUST_OFF_TIMER is reached
-        if(ignoranceTimerInMinutes >= MUST_OFF_TIMER)
+        if(ignoranceTimerInMinutes >= must_off_timer)
         {
             if(currentMode != MODE_OFF)
             {
@@ -637,6 +643,22 @@ void myHandler(const char *event, const char *data)
         // log the event
         Particle.publish("o2sensor", "RhT-Auto Enabled");
         
+        // determine the MUST_OFF_TIMER based on current time
+        if(Time.hour() >= MUSTOFFTIMER_SHORT_BEGIN && Time.hour() <= MUSTOFFTIMER_SHORT_END)
+        {
+            must_off_timer = MUSTOFFTIMER_SHORT;
+            
+            // log the event
+            Particle.publish("o2sensor", "use short MUST_OFF_TIMER");
+        }
+        else
+        {
+            must_off_timer = MUSTOFFTIMER_REGULAR;
+            
+            // log the event
+            Particle.publish("o2sensor", "use regular MUST_OFF_TIMER");
+        }
+        
         // reset must-off timer to enable the auto control
         elapsed_must_off_timer = 0;
         
@@ -655,7 +677,7 @@ void myHandler(const char *event, const char *data)
         daikin_off(DONT_CTRL_FAN);
         
         // maximize the must-off-timer to stop the auto-control
-        elapsed_must_off_timer = MUST_OFF_TIMER * (long) 60000;
+        elapsed_must_off_timer = MUSTOFFTIMER_REGULAR * (long) 60000;
         
         // reenable the RHT control system
         rhtDisabled = false;
