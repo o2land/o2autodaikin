@@ -88,6 +88,8 @@ bool current_temp_mode1 = true;
 bool current_fan_mode_on = false;
 bool ac_already_off = false;    // even during AC-OFF-OK period, it can be only one time AC off
 
+bool first_hour_mode = false;   // first hour use stronger AC-FAN speed and turn on the FAN
+
 // -----------------------------------------------------------------------------------
 void setup() {
     Serial1.begin(38400);
@@ -131,12 +133,13 @@ void setup() {
     current_temp_mode1 = true;
     current_fan_mode_on = false;
     ac_already_off = false;
+    first_hour_mode = false;
 
     // set mode 1 temperature to the air conditioning      
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-06-29");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-07-30");
 }
 
 
@@ -278,6 +281,45 @@ void loop()
     // convert the overall running time of auto control to minutes
     unsigned int ignoranceTimerInMinutes = elapsed_must_off_timer / (long) 60000;
     
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // if this is the first hour of rht-auto service on, set stronger AC-FAN speed and turn on the FAN
+    // otherwise, set it back
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    if(ignoranceTimerInMinutes < 60)
+    {
+        if(!first_hour_mode)
+        {
+            // set the flag
+            first_hour_mode =true;
+            
+            // set the stronger AC-FAN speed
+            Serial1.println("atf4");
+            
+            // turn on FAN 
+            fan_on();
+            
+            // log the event
+            Particle.publish("o2sensor", "set the first hour mode");
+        }
+    }
+    else
+    {
+        if(first_hour_mode)
+        {
+            // set the flag back
+            first_hour_mode = false;
+            
+            // set normal quiet AC-FAN speed
+            Serial1.println("atf6");
+            
+            // turn off FAN
+            fan_off();
+            
+            // log the event
+            Particle.publish("o2sensor", "unset the first hour mode");
+        }
+    }
+
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Standard Temperature is different in different time
     // ---------------------------------------------------------------------------------------------------------------------------------
@@ -668,6 +710,7 @@ void myHandler(const char *event, const char *data)
         // reenable the RHT control system
         rhtDisabled = false;
         ac_already_off = false;
+        first_hour_mode = false;
         
         // assume the current mode off
         currentMode = MODE_OFF;
