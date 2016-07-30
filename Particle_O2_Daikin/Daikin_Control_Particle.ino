@@ -33,6 +33,9 @@
 
 #define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed, if so, KEEP_ONOFF_TIMER will be ignored
 
+// running time in the first hour with the high AC-FAN speed/FAN on
+#define	FIRST_HOUR_HIGH_FAN_MIN 35
+
 // time that allows OFF
 //   if the current time is outside this time window, once the AC is on, it will switch between COOLING and DEHUMIDIFIER
 //   during this time window, it is allowed to turn AC off
@@ -87,7 +90,6 @@ unsigned int currentReadCount = 0;
 bool current_temp_mode1 = true;
 bool current_fan_mode_on = false;
 bool ac_already_off = false;    // even during AC-OFF-OK period, it can be only one time AC off
-
 bool first_hour_mode = false;   // first hour use stronger AC-FAN speed and turn on the FAN
 
 // -----------------------------------------------------------------------------------
@@ -139,7 +141,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-07-30");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-07-31");
 }
 
 
@@ -179,6 +181,9 @@ void daikin_ac_on()
 {
     unsigned int repeat;
     
+    // convert the overall running time of auto control to minutes
+    unsigned int ignoranceTimerInMinutes = elapsed_must_off_timer / (long) 60000;
+    
     // send to log
     Particle.publish("o2sensor", "switch to cooling");
     
@@ -198,14 +203,20 @@ void daikin_ac_on()
     // reset the on-off control timer
     elapsed_keep_onoff_timer = 0;
     
-    // fan off
-    fan_off();
+    // fan off if this is not the first hour
+    if(ignoranceTimerInMinutes >= FIRST_HOUR_HIGH_FAN_MIN)
+    {
+        fan_off();
+    }
 }
 
 
 void daikin_dehumidifier_on()
 {
     unsigned int repeat;
+    
+    // convert the overall running time of auto control to minutes
+    unsigned int ignoranceTimerInMinutes = elapsed_must_off_timer / (long) 60000;
     
     // send to log
     Particle.publish("o2sensor", "switch to dehumidifier");
@@ -226,8 +237,11 @@ void daikin_dehumidifier_on()
     // reset the on-off control timer
     elapsed_keep_onoff_timer = 0;
     
-    // fan off
-    fan_off();
+    // fan off if this is not the first hour
+    if(ignoranceTimerInMinutes >= FIRST_HOUR_HIGH_FAN_MIN)
+    {
+        fan_off();
+    }
 }
 
 
@@ -285,10 +299,13 @@ void loop()
     // if this is the first hour of rht-auto service on, set stronger AC-FAN speed and turn on the FAN
     // otherwise, set it back
     // ---------------------------------------------------------------------------------------------------------------------------------
-    if(ignoranceTimerInMinutes < 60)
+    if(ignoranceTimerInMinutes < FIRST_HOUR_HIGH_FAN_MIN)
     {
         if(!first_hour_mode)
         {
+            // log the event
+            Particle.publish("o2sensor", "set the first hour mode");
+            
             // set the flag
             first_hour_mode =true;
             
@@ -296,16 +313,16 @@ void loop()
             Serial1.println("atf4");
             
             // turn on FAN 
-            fan_on();
-            
-            // log the event
-            Particle.publish("o2sensor", "set the first hour mode");
+            fan_on();            
         }
     }
     else
     {
         if(first_hour_mode)
         {
+            // log the event
+            Particle.publish("o2sensor", "unset the first hour mode");
+            
             // set the flag back
             first_hour_mode = false;
             
@@ -315,8 +332,20 @@ void loop()
             // turn off FAN
             fan_off();
             
-            // log the event
-            Particle.publish("o2sensor", "unset the first hour mode");
+            // reset the AC or Dehumidifier command to set the AC-FAN speed back
+            switch(currentMode)
+            {
+                case MODE_COOLING:
+                    daikin_ac_on();
+                    break;
+                    
+                case MODE_DEHUMIDIFIER:
+                    daikin_dehumidifier_on();
+                    break;
+                    
+                default:
+                    break;
+            }            
         }
     }
 
