@@ -141,7 +141,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-07-31");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-08-13");
 }
 
 
@@ -311,6 +311,9 @@ void loop()
             
             // set the stronger AC-FAN speed
             Serial1.println("atf4");
+
+            // and lower temperature      
+            Serial1.println("att23");
             
             // turn on FAN 
             fan_on();            
@@ -328,6 +331,9 @@ void loop()
             
             // set normal quiet AC-FAN speed
             Serial1.println("atf6");
+            
+            // and normal temperature      
+            Serial1.println("att24");
             
             // turn off FAN
             fan_off();
