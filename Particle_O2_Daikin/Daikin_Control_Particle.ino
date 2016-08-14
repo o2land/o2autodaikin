@@ -141,7 +141,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-08-13");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-08-14");
 }
 
 
@@ -313,7 +313,7 @@ void loop()
             Serial1.println("atf4");
 
             // and lower temperature      
-            Serial1.println("att23");
+            Serial1.println("att21");
             
             // turn on FAN 
             fan_on();            
