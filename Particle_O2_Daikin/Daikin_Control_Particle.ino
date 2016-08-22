@@ -141,7 +141,7 @@ void setup() {
     Serial1.println("att24");
             
     // log the event
-    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-08-14");
+    Particle.publish("o2sensor", "RhT Control System Initialized, 2016-08-22");
 }
 
 
@@ -307,7 +307,7 @@ void loop()
             Particle.publish("o2sensor", "set the first hour mode");
             
             // set the flag
-            first_hour_mode =true;
+            first_hour_mode = true;
             
             // set the stronger AC-FAN speed
             Serial1.println("atf4");
@@ -415,6 +415,24 @@ void loop()
             
             // log the event
             Particle.publish("o2sensor", "switch to temperature mode 2");
+
+            // send the IR command again with the new temperature setting
+            if(!rhtDisabled)
+            {
+            	switch(currentMode)
+            	{
+            	    case MODE_COOLING:
+            	        daikin_ac_on();
+            	        break;
+            	        
+            	    case MODE_DEHUMIDIFIER:
+            	        daikin_dehumidifier_on();
+            	        break;
+            	        
+            	    default:
+            	        break;
+            	}            
+            }            
         }
     }
     else
@@ -435,6 +453,24 @@ void loop()
             
             // log the event
             Particle.publish("o2sensor", "switch to temperature mode 1");
+
+            // send the IR command again with the new temperature setting
+            if(!rhtDisabled)
+            {
+            	switch(currentMode)
+            	{
+            	    case MODE_COOLING:
+            	        daikin_ac_on();
+            	        break;
+            	        
+            	    case MODE_DEHUMIDIFIER:
+            	        daikin_dehumidifier_on();
+            	        break;
+            	        
+            	    default:
+            	        break;
+            	}            
+            }            
         }
     }
 
