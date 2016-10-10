@@ -14,6 +14,7 @@
   atrs              >OK                                   Issue SHT31-D hardware reset 
   atc1              >OK                                   Cooling ON
   atm1              >OK                                   Dehumidifier ON
+  ate1							>OK																		Fan ON only (no cooling, no dehumidifier)
   atfN              >OK or >Err                           Set fan speed, N=1 ~ 6, default = 6
   attN              >OK or >Err                           Set air conditioning temperature, N=18 ~ 29, default = 24
   atd0              >OK                                   Air conditioning all OFF
@@ -95,6 +96,20 @@ void setup() {
   // notify the processor
   String qmoteCmd = "RhT-D READY\r\n";
   portOne.write(qmoteCmd.c_str());
+}
+
+
+/**
+ *  Switch ON Fan only
+ */
+void daikin_fan_on_only()
+{
+  irdaikin.daikin_on();
+  irdaikin.daikin_setSwing_off();
+  irdaikin.daikin_setMode(0);  // fan only
+  irdaikin.daikin_setFan(daikin_fan);
+  irdaikin.daikin_setTemp(daikin_temp);
+  irdaikin.daikin_sendCommand();
 }
 
 
@@ -253,6 +268,11 @@ void loop()
       else if(recvLine == "atm1")
       {
         daikin_dehumidifier_on();
+        portOne.println(">OK");
+      }
+      else if(recvLine == "ate1")
+      {
+        daikin_fan_on_only();
         portOne.println(">OK");
       }
       else if(recvLine == "atd0")
