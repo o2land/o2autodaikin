@@ -409,20 +409,27 @@ void loop()
                     Particle.publish("thingspeak", "field1=" + String(xRh, 2) + "&field2=" + String(xTemp, 2) + "&field3=" + String(xHI,2));
 
                     // publish to the event log
-                    String txtOutput = "Rh" + String(xRh, 2) + ", T" + String(xTemp, 2) + ", HI" + String(xHI,2) + ", " + modeStr;
+                    String txtOutput = "Rh" + String(xRh, 2) + ", T" + String(xTemp, 2) + ", HI" + String(xHI,2);
 
                     // added the conditional stat events
                     if(!rht_control_on)
                     {
                         txtOutput += ", NO_Ctrl";
                     }
-                    else if(lastCommandSentInMinutes < REMAIN_MODE_TIME)
+                    else
                     {
-                        txtOutput += ", Remain";
-                    }
-                    else if(hTempTime == true)
-                    {
-                        txtOutput += ", HTemp";
+                      // current mode
+                      txtOutput += ", " + modeStr;
+
+                      // current control status
+                      if(lastCommandSentInMinutes < REMAIN_MODE_TIME)
+                      {
+                          txtOutput += ", Remain";
+                      }
+                      else if(hTempTime == true)
+                      {
+                          txtOutput += ", HTemp";
+                      }
                     }
 
                     // publish it
