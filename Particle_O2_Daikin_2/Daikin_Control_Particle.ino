@@ -422,7 +422,11 @@ void loop()
                       txtOutput += ", " + modeStr;
 
                       // current control status
-                      if(lastCommandSentInMinutes < REMAIN_MODE_TIME)
+                      if(daikin_boost)
+                      {
+                          txtOutput += ", Boost";
+                      }
+                      else if(lastCommandSentInMinutes < REMAIN_MODE_TIME)
                       {
                           txtOutput += ", Remain";
                       }
@@ -500,7 +504,7 @@ void loop()
           fan_on();
         }
       }
-      else
+      else if(!daikin_boost)
       {
         // external fan currently ON
         if(currentMode != MODE_FAN)
