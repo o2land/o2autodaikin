@@ -31,8 +31,8 @@
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // DEH_TEMP must be lower than TEMP_AC_CMD degree, otherwise the system will switch between COOLING and DEHUMIDIFIER modes
-#define COLD_TEMP               24.00
-#define COLD_TEMP_H             24.50
+#define COLD_TEMP               24.50
+#define COLD_TEMP_H             24.80
 #define HEAT_INDEX_TOO_HIGH     27.50       // use Heat Index to check if the ambient condition needs to be changed
 
 #define TEMP_AC_CMD             "att24"
