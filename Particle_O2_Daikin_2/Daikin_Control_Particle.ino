@@ -27,7 +27,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized, 2016-10-11"
+#define INIT_STR                "RhT Control System Initialized, 2016-10-15"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // DEH_TEMP must be lower than TEMP_AC_CMD degree, otherwise the system will switch between COOLING and DEHUMIDIFIER modes
@@ -38,11 +38,11 @@
 #define TEMP_AC_CMD             "att24"
 #define TEMP_BOOST_CMD          "att23"
 #define FAN_SPEED_NIGHT         "atf6"
-#define FAN_SPEED_BOOST         "atf4"
+#define FAN_SPEED_BOOST         "atf5"
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
-#define REMAIN_MODE_TIME        25          // in munutes
+#define REMAIN_MODE_TIME        10          // in munutes
 
 // higher temperature time period (on hour), use COLD_TEMP_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
