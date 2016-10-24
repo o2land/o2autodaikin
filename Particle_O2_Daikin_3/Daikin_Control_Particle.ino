@@ -24,12 +24,12 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3, 2016-10-23"
+#define INIT_STR                "RhT Control System Initialized V3, 2016-10-24"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // DEH_TEMP must be lower than TEMP_AC_CMD degree, otherwise the system will switch between COOLING and DEHUMIDIFIER modes
-#define COLD_TEMP               24.50
-#define COLD_TEMP_H             24.80
+#define COLD_TEMP_HI            25.40       // use Heat Index
+#define COLD_TEMP_HI_H          25.05       // use Heat Index
 
 #define TEMP_AC_CMD             "att25"
 #define TEMP_BOOST_CMD          "att23"
@@ -38,7 +38,7 @@
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
-#define REMAIN_MODE_TIME        7           // in munutes
+#define REMAIN_MODE_TIME        20          // in munutes
 
 // higher temperature time period (on hour), use COLD_TEMP_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
@@ -453,7 +453,7 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     // determine cold temperature criteria based on the current time
-    float coldTemp = hTempTime ? COLD_TEMP_H : COLD_TEMP;
+    float coldTemp = hTempTime ? COLD_TEMP_HI_H : COLD_TEMP_HI;
 
     // performing daikin control only when RHT Control is enabled and not in boost mode
     if(rht_control_on && !daikin_boost)
@@ -463,20 +463,25 @@ void loop()
       {
         // .....................................................
 
-        // if COLD_TEMP <= temp <= DEH_TEMP, use DEH
-        if(currentMode != MODE_DEHUMIDIFIER &&
-           ((float) currentTemp >= (float) coldTemp) &&
+        // if COLD_TEMP <= temp <= DEH_TEMP
+        if(((float) currentHI >= (float) coldTemp) &&
            ((float) currentTemp <= (float) DEH_TEMP))
         {
-          daikin_dehumidifier_on();
+          if(currentMode != MODE_DEHUMIDIFIER)
+          {
+            daikin_dehumidifier_on();
+          }
         }
 
         // .....................................................
 
-        // otherwise, use AC
-        else if(currentMode != MODE_COOLING)
+        // outside the DEH window
+        else
         {
-          daikin_ac_on();
+          if(currentMode != MODE_COOLING)
+          {
+            daikin_ac_on();
+          }
         }
 
         // .....................................................
