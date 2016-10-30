@@ -24,21 +24,22 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3, 2016-10-24"
+#define INIT_STR                "RhT Control System Initialized V3, 2016-10-30"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // DEH_TEMP must be lower than TEMP_AC_CMD degree, otherwise the system will switch between COOLING and DEHUMIDIFIER modes
 #define COLD_TEMP_HI            25.40       // use Heat Index
 #define COLD_TEMP_HI_H          25.05       // use Heat Index
 
-#define TEMP_AC_CMD             "att25"
+#define TEMP_AC_CMD             "att24"
 #define TEMP_BOOST_CMD          "att23"
 #define FAN_SPEED_NIGHT         "atf6"
 #define FAN_SPEED_BOOST         "atf5"
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
-#define REMAIN_MODE_TIME        20          // in munutes
+#define REMAIN_MODE_TIME        30          // in minutes
+#define REMAIN_MODE_TIME_DH     15          // in minutes
 
 // higher temperature time period (on hour), use COLD_TEMP_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
@@ -268,6 +269,17 @@ void loop()
     systemUpTimerInMinutes = elapsed_system_up_timer / (long) 60000;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
+    // Determine remain_mode timer based on the current mode
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    unsigned int useRemainModeTime = REMAIN_MODE_TIME;
+
+    // Dehumidifer uses a shorter timer since it may pull temperature too low
+    if(currentMode == MODE_DEHUMIDIFIER)
+    {
+      useRemainModeTime = REMAIN_MODE_TIME_DH;
+    }
+
+    // ---------------------------------------------------------------------------------------------------------------------------------
     // Determine current time
     // ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -422,7 +434,7 @@ void loop()
                       {
                           txtOutput += ", Boost";
                       }
-                      else if(lastCommandSentInMinutes < REMAIN_MODE_TIME)
+                      else if(lastCommandSentInMinutes < useRemainModeTime)
                       {
                           txtOutput += ", Remain";
                       }
@@ -459,7 +471,7 @@ void loop()
     if(rht_control_on && !daikin_boost)
     {
       // avoid frequent mode switching
-      if(lastCommandSentInMinutes >= REMAIN_MODE_TIME)
+      if(lastCommandSentInMinutes >= useRemainModeTime)
       {
         // .....................................................
 
