@@ -16,20 +16,22 @@
 
 // Adjustment Logic:
 //
-// if COLD_TEMP <= temp <= DEH_TEMP, use DEH
-// otherwise, use AC
-// (The trick is if the temperature is low, AC equals to FAN, but if the temperature rises too fast, AC will run as AC)
+// if (COLD_HEAT_INDEX <= temp_heat_index) && (temp <= DEH_TEMP), use DEH, otherwise, use AC
+// * The trick is if the temperature is low, AC equals to FAN,
+//   but if the temperature rises too fast, AC will run as AC.
+//   On the other hand, if heat index is high but temperature is low,
+//   it implies the humidity is too high. AC will not work but dehumidifier will.
 //
 // boost mode, use lower temp and higher fan without further control
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3, 2016-10-30"
+#define INIT_STR                "RhT Control System Initialized V3.1, 2017-05-07"
 
 // ambient environmental parameters
-#define DEH_TEMP                26.00       // DEH_TEMP must be lower than TEMP_AC_CMD degree, otherwise the system will switch between COOLING and DEHUMIDIFIER modes
-#define COLD_TEMP_HI            25.40       // use Heat Index
-#define COLD_TEMP_HI_H          25.05       // use Heat Index
+#define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
+#define COLD_TEMP_HI            24.10       // use Heat Index
+#define COLD_TEMP_HI_H          24.55       // use Heat Index (Higher Tempeature Period)
 
 #define TEMP_AC_CMD             "att24"
 #define TEMP_BOOST_CMD          "att23"
@@ -78,6 +80,8 @@ bool daikin_boost = false;
 
 bool rht_control_on = false;
 
+int autoOffTimerHour = 25;  // auto off control
+
 // -----------------------------------------------------------------------------------
 void setup() {
     Serial1.begin(38400);
@@ -111,6 +115,7 @@ void setup() {
     current_fan_mode_on = false;
     daikin_boost = false;
     rht_control_on = false;
+    autoOffTimerHour = 25;  // there is no clock hour 25
 
     // set the air conditioning to the default modes
     Serial1.println(TEMP_AC_CMD);
@@ -284,6 +289,32 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     bool hTempTime = (Time.hour() >= HTEMP_BEGIN_HOUR && Time.hour() < HTEMP_END_HOUR) ? true : false;
+
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Check auto off timer
+    // ---------------------------------------------------------------------------------------------------------------------------------
+
+    if(Time.hour() == autoOffTimerHour)
+    {
+      if(rht_control_on)
+      {
+        // disable RHT control
+        rht_control_on = false;
+
+        // don't boost for the next run
+        daikin_boost = false;
+
+        // turn both AC and FAN off
+        daikin_off();
+        fan_off();
+
+        // send the log
+        Particle.publish("o2sensor", "RhT Off by the Auto Off Timer");
+      }
+
+      // clear timer
+      autoOffTimerHour = 25;
+    }
 
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Processing periodical commands
@@ -584,11 +615,33 @@ void myHandler(const char *event, const char *data)
       daikin_off();
       fan_off();
     }
+    else if(ingredient.indexOf("auto-off-") > -1)
+    {
+      // auto off timer is a one time valid setting
+      // it can be set independent from rht on/off control
+      // auto-off-01 means off at 01:00
+      // auto-off-23 means off at 23:00
+      // auto-off-25 means no auto off (because there is no 25:00)
+
+      if(ingredient.length() == 11)
+      {
+        int searchIdx = ingredient.indexOf("auto-off-");
+        autoOffTimerHour = ingredient.substring(searchIdx + 9).toInt();
+
+        // log the config
+        if(autoOffTimerHour >= 0 && autoOffTimerHour <= 24)
+        {
+          Particle.publish("o2sensor", "RhT Auto Off at " + String(autoOffTimerHour) + ":00");
+        }
+        else
+        {
+          Particle.publish("o2sensor", "RhT Auto Off Timer is disabled");
+        }
+      }
+    }
 
     // toggle LED as a progress indicator
     digitalWrite(D7, HIGH);
     delay(1000);
     digitalWrite(D7, LOW);
 }
-
-
