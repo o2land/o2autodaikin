@@ -26,12 +26,12 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.1.5, 2017-05-15"
+#define INIT_STR                "RhT Control System Initialized V3.1.6, 2017-06-01"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
 #define COLD_TEMP_HI            24.20       // use Heat Index
-#define COLD_TEMP_HI_H          24.35       // use Heat Index (Higher Tempeature Period)
+#define COLD_TEMP_HI_H          24.65       // use Heat Index (Higher Tempeature Period)
 
 #define TEMP_AC_CMD             "att24"
 #define TEMP_BOOST_CMD          "att23"
@@ -45,7 +45,7 @@
 
 // higher temperature time period (on hour), use COLD_TEMP_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
-#define HTEMP_END_HOUR          5           // 5:00 AM
+#define HTEMP_END_HOUR          6           // 6:00 AM
 
 // -----------------------------------------------------------------------------------------------------------------
 // status and control parameters
