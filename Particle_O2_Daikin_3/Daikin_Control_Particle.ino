@@ -26,12 +26,12 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.1.6, 2017-06-01"
+#define INIT_STR                "RhT Control System Initialized V3.2.1, 2017-06-02"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
 #define COLD_TEMP_HI            24.20       // use Heat Index
-#define COLD_TEMP_HI_H          24.65       // use Heat Index (Higher Tempeature Period)
+#define COLD_TEMP_HI_H          24.75       // use Heat Index (Higher Tempeature Period)
 
 #define TEMP_AC_CMD             "att24"
 #define TEMP_BOOST_CMD          "att23"
@@ -81,6 +81,7 @@ bool daikin_boost = false;
 bool rht_control_on = false;
 
 int autoOffTimerHour = 25;  // auto off control
+int autoOnTimerHour = 25;   // auto on control
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -90,11 +91,7 @@ void setup() {
     pinMode(D7, OUTPUT);
 
     // Turn RGB LED off
-    RGB.control(true);
-    RGB.color(0, 0, 0);
-    delay(1000);
-    RGB.brightness(0);
-    delay(1000);
+    rgb_led_off();
 
     // Subscribe Network Event
     Particle.subscribe("o2daikin", myHandler);
@@ -116,6 +113,7 @@ void setup() {
     daikin_boost = false;
     rht_control_on = false;
     autoOffTimerHour = 25;  // there is no clock hour 25
+    autoOnTimerHour = 25;  // there is no clock hour 25
 
     // set the air conditioning to the default modes
     Serial1.println(TEMP_AC_CMD);
@@ -257,6 +255,18 @@ void daikin_off()
     elapsed_remain_mode_timer = 0;
 }
 
+
+void rgb_led_off()
+{
+  // Turn RGB LED off
+  RGB.control(true);
+  RGB.color(0, 0, 0);
+  delay(1000);
+  RGB.brightness(0);
+  delay(1000);
+}
+
+
 // =========================================================================================================
 // =========================================================================================================
 // =========================================================================================================
@@ -289,6 +299,33 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     bool hTempTime = (Time.hour() >= HTEMP_BEGIN_HOUR && Time.hour() < HTEMP_END_HOUR) ? true : false;
+
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Check auto on timer (Check ON first, then OFF, in case OFF/ON at the same time)
+    // ---------------------------------------------------------------------------------------------------------------------------------
+
+    if(Time.hour() == autoOnTimerHour)
+    {
+      // process the enable procedure regardless what the current control status is
+      // **************************************************************************
+      // reset system control variables
+      elapsed_remain_mode_timer = REMAIN_MODE_TIME * (long) 60000;  // maximize the remain_mode_timer to allow the next contorl
+      elapsed_system_up_timer = 0;  // this is a fresh start, reset must-off timer to enable the auto control
+      currentMode = MODE_OFF;  // assume the current mode off
+      daikin_boost = false;  // don't boost for the next run
+
+      // enable RHT control
+      rht_control_on = true;
+
+      // send the log
+      Particle.publish("o2sensor", "RhT On by the Auto On Timer");
+
+      // clear timer
+      autoOnTimerHour = 25;
+
+      // Turn RGB LED off
+      rgb_led_off();
+    }
 
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Check auto off timer
@@ -614,11 +651,17 @@ void myHandler(const char *event, const char *data)
       // turn both AC and FAN off
       daikin_off();
       fan_off();
+
+      // rht off also disable auto-on
+      autoOnTimerHour = 25;
+
+      // Turn RGB LED off
+      rgb_led_off();
     }
     else if(ingredient.indexOf("auto-off-") > -1)
     {
       // auto off timer is a one time valid setting
-      // it can be set independent from rht on/off control
+      // it can be set independently from rht on/off control
       // auto-off-01 means off at 01:00
       // auto-off-23 means off at 23:00
       // auto-off-25 means no auto off (because there is no 25:00)
@@ -636,6 +679,40 @@ void myHandler(const char *event, const char *data)
         else
         {
           Particle.publish("o2sensor", "RhT Auto Off Timer is disabled");
+        }
+      }
+    }
+    else if(ingredient.indexOf("auto-on-") > -1)
+    {
+      // auto on timer is a one time valid setting
+      // it can be set independently from rht on/off control
+      // auto-on-01 means on at 01:00
+      // auto-on-23 means on at 23:00
+      // auto-on-25 means no auto on (because there is no 25:00)
+
+      if(ingredient.length() == 10)
+      {
+        int searchIdx = ingredient.indexOf("auto-on-");
+        autoOnTimerHour = ingredient.substring(searchIdx + 8).toInt();
+
+        // log the config
+        if(autoOnTimerHour >= 0 && autoOnTimerHour <= 24)
+        {
+          Particle.publish("o2sensor", "RhT Auto On at " + String(autoOnTimerHour) + ":00");
+
+          // Auto-ON mode is important, so lid the RGB LED
+          RGB.control(true);
+          RGB.color(0, 100, 0);
+          delay(1000);
+          RGB.brightness(20);
+          delay(1000);
+        }
+        else
+        {
+          Particle.publish("o2sensor", "RhT Auto On Timer is disabled");
+
+          // Turn RGB LED off
+          rgb_led_off();
         }
       }
     }
