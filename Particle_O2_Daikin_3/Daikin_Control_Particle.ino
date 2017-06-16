@@ -26,7 +26,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.2.1, 2017-06-02"
+#define INIT_STR                "RhT Control System Initialized V3.3.0, 2017-06-16"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
@@ -341,9 +341,11 @@ void loop()
         // don't boost for the next run
         daikin_boost = false;
 
-        // turn both AC and FAN off
+        // turn AC off
         daikin_off();
-        fan_off();
+
+        // external FAN on if AC is turned off by timer
+        fan_on();
 
         // send the log
         Particle.publish("o2sensor", "RhT Off by the Auto Off Timer");
