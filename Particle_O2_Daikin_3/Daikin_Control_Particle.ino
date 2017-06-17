@@ -26,7 +26,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.4.0, 2017-06-17"
+#define INIT_STR                "RhT Control System Initialized V3.4.1, 2017-06-17"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
@@ -125,9 +125,9 @@ void setup() {
 void fan_on()
 {
     // control through IFTTT
-    delay(1000);  // to avoid event override
+    delay(10000);  // to avoid event override
     Particle.publish("o2fan", "ON");
-    delay(1000);
+    delay(10000);
 
     // log the event
     Particle.publish("o2sensor", "Turn external fan ON");
@@ -137,9 +137,9 @@ void fan_on()
 void fan_off()
 {
     // control through IFTTT
-    delay(1000);  // to avoid event override
+    delay(10000);  // to avoid event override
     Particle.publish("o2fan", "OFF");
-    delay(1000);
+    delay(10000);
 
     // log the event
     Particle.publish("o2sensor", "Turn external fan OFF");
