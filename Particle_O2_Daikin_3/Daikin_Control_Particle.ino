@@ -26,7 +26,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.3.0, 2017-06-16"
+#define INIT_STR                "RhT Control System Initialized V3.4.0, 2017-06-17"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
@@ -75,7 +75,6 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
-bool current_fan_mode_on = false;
 bool daikin_boost = false;
 
 bool rht_control_on = false;
@@ -109,7 +108,6 @@ void setup() {
     elapsed_remain_mode_timer = 0;
 
     // other default state settings
-    current_fan_mode_on = false;
     daikin_boost = false;
     rht_control_on = false;
     autoOffTimerHour = 25;  // there is no clock hour 25
@@ -126,33 +124,25 @@ void setup() {
 
 void fan_on()
 {
-    if(!current_fan_mode_on)
-    {
-        // control through IFTTT
-        Particle.publish("o2fan", "ON");
+    // control through IFTTT
+    delay(1000);  // to avoid event override
+    Particle.publish("o2fan", "ON");
+    delay(1000);
 
-        // set the flag
-        current_fan_mode_on = TRUE;
-
-        // log the event
-        Particle.publish("o2sensor", "Turn external fan ON");
-    }
+    // log the event
+    Particle.publish("o2sensor", "Turn external fan ON");
 }
 
 
 void fan_off()
 {
-    if(current_fan_mode_on)
-    {
-        // control through IFTTT
-        Particle.publish("o2fan", "OFF");
+    // control through IFTTT
+    delay(1000);  // to avoid event override
+    Particle.publish("o2fan", "OFF");
+    delay(1000);
 
-        // set the flag
-        current_fan_mode_on = FALSE;
-
-        // log the event
-        Particle.publish("o2sensor", "Turn external fan OFF");
-    }
+    // log the event
+    Particle.publish("o2sensor", "Turn external fan OFF");
 }
 
 
