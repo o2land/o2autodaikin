@@ -26,7 +26,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.4.2, 2017-07-08"
+#define INIT_STR                "RhT Control System Initialized V3.5.1, 2017-08-27"
 
 // ambient environmental parameters
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
@@ -306,6 +306,9 @@ void loop()
 
       // enable RHT control
       rht_control_on = true;
+
+      // external FAN off if AC is turned on by timer
+      fan_off();
 
       // send the log
       Particle.publish("o2sensor", "RhT On by the Auto On Timer");
@@ -654,11 +657,11 @@ void myHandler(const char *event, const char *data)
     {
       // auto off timer is a one time valid setting
       // it can be set independently from rht on/off control
-      // auto-off-01 means off at 01:00
+      // auto-off-1 means off at 01:00
       // auto-off-23 means off at 23:00
       // auto-off-25 means no auto off (because there is no 25:00)
 
-      if(ingredient.length() == 11)
+      if(ingredient.length() >= 10)
       {
         int searchIdx = ingredient.indexOf("auto-off-");
         autoOffTimerHour = ingredient.substring(searchIdx + 9).toInt();
@@ -670,6 +673,9 @@ void myHandler(const char *event, const char *data)
         }
         else
         {
+          //set to 25 if it is not 00 through 24
+          autoOffTimerHour = 25;
+
           Particle.publish("o2sensor", "RhT Auto Off Timer is disabled");
         }
       }
@@ -678,11 +684,11 @@ void myHandler(const char *event, const char *data)
     {
       // auto on timer is a one time valid setting
       // it can be set independently from rht on/off control
-      // auto-on-01 means on at 01:00
+      // auto-on-1 means on at 01:00
       // auto-on-23 means on at 23:00
       // auto-on-25 means no auto on (because there is no 25:00)
 
-      if(ingredient.length() == 10)
+      if(ingredient.length() >= 9)
       {
         int searchIdx = ingredient.indexOf("auto-on-");
         autoOnTimerHour = ingredient.substring(searchIdx + 8).toInt();
@@ -701,6 +707,9 @@ void myHandler(const char *event, const char *data)
         }
         else
         {
+          // set to 25 if it is not 00 through 24
+          autoOnTimerHour = 25;
+          
           Particle.publish("o2sensor", "RhT Auto On Timer is disabled");
 
           // Turn RGB LED off
