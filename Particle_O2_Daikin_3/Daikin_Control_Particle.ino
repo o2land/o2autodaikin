@@ -26,14 +26,18 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.5.1, 2017-08-27"
+#define INIT_STR                "RhT Control System Initialized V3.6.1, 2017-09-03"
 
 // ambient environmental parameters
+#define AC_USE_LO               29.00       // when enable rht control, if current temperature is higher than this, use AC_CMD_LO
 #define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
-#define COLD_TEMP_HI            24.20       // use Heat Index
-#define COLD_TEMP_HI_H          24.45       // use Heat Index (Higher Tempeature Period)
+#define A_COLD_TEMP_HI          24.20       // use Heat Index (use with AC_USE_LO)
+#define A_COLD_TEMP_HI_H        24.45       // use Heat Index (Higher Tempeature Period) (use with AC_USE_LO)
+#define B_COLD_TEMP_HI          25.00       // use Heat Index
+#define B_COLD_TEMP_HI_H        25.25       // use Heat Index (Higher Tempeature Period)
 
-#define TEMP_AC_CMD             "att24"
+#define TEMP_AC_CMD_LO          "att24"
+#define TEMP_AC_CMD_HI          "att25"
 #define TEMP_BOOST_CMD          "att23"
 #define FAN_SPEED_NIGHT         "atf6"
 #define FAN_SPEED_BOOST         "atf5"
@@ -75,6 +79,9 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
+float coldTempHi = A_COLD_TEMP_HI;
+float coldTempHiH = A_COLD_TEMP_HI_H;
+
 bool daikin_boost = false;
 
 bool rht_control_on = false;
@@ -114,7 +121,7 @@ void setup() {
     autoOnTimerHour = 25;  // there is no clock hour 25
 
     // set the air conditioning to the default modes
-    Serial1.println(TEMP_AC_CMD);
+    Serial1.println(TEMP_AC_CMD_LO);
     Serial1.println(FAN_SPEED_NIGHT);
 
     // log the event
@@ -477,7 +484,7 @@ void loop()
                     }
 
                     // publish to thingspeak
-                    Particle.publish("thingspeak", "field1=" + String(xRh, 2) + "&field2=" + String(xTemp, 2) + "&field3=" + String(xHI,2));
+                    // Particle.publish("thingspeak", "field1=" + String(xRh, 2) + "&field2=" + String(xTemp, 2) + "&field3=" + String(xHI,2));
 
                     // publish to the event log
                     String txtOutput = "Rh" + String(xRh, 2) + ", T" + String(xTemp, 2) + ", HI" + String(xHI,2);
@@ -528,7 +535,7 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     // determine cold temperature criteria based on the current time
-    float coldTemp = hTempTime ? COLD_TEMP_HI_H : COLD_TEMP_HI;
+    float coldTemp = hTempTime ? coldTempHiH : coldTempHi;
 
     // performing daikin control only when RHT Control is enabled and not in boost mode
     if(rht_control_on && !daikin_boost)
@@ -600,7 +607,7 @@ void myHandler(const char *event, const char *data)
             daikin_boost = false;
 
             // restore the defaults
-            Serial1.println(TEMP_AC_CMD);
+            Serial1.println(TEMP_AC_CMD_LO); // since boost is used, low setting is assumed
             Serial1.println(FAN_SPEED_NIGHT);
 
             // turn off external fan
@@ -628,7 +635,26 @@ void myHandler(const char *event, const char *data)
           Particle.publish("o2sensor", "RhT-Auto Enabled");
 
           // restore the defaults
-          Serial1.println(TEMP_AC_CMD);
+          if((float) currentTemp > (float) AC_USE_LO)
+          {
+            Serial1.println(TEMP_AC_CMD_LO);
+
+            // set temperature criteria
+            coldTempHi = A_COLD_TEMP_HI;
+            coldTempHiH = A_COLD_TEMP_HI_H;
+          }
+          else
+          {
+            Serial1.println(TEMP_AC_CMD_HI);
+
+            // set temperature criteria
+            coldTempHi = B_COLD_TEMP_HI;
+            coldTempHiH = B_COLD_TEMP_HI_H;
+
+            // log the event
+            Particle.publish("o2sensor", "AC_CMD use high temperature setting");
+          }
+
           Serial1.println(FAN_SPEED_NIGHT);
 
           // enable RHT Control
@@ -709,7 +735,7 @@ void myHandler(const char *event, const char *data)
         {
           // set to 25 if it is not 00 through 24
           autoOnTimerHour = 25;
-          
+
           Particle.publish("o2sensor", "RhT Auto On Timer is disabled");
 
           // Turn RGB LED off
