@@ -26,17 +26,20 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.7.1, 2017-09-17"
+#define INIT_STR                "RhT Control System Initialized V3.7.2, 2017-09-17"
 
 // ambient environmental parameters during normal hours
 #define TEMP_AC_CMD_LO          "att25"
 #define DEH_TEMP                26.50       // Dehumidifier Temperature
-#define COLD_HIDX               24.20       // use Heat Index
+#define COLD_TEMP               25.00       // use Heat Index
 
 // ambient environmental parameters during H hours
 #define TEMP_AC_CMD_HI          "att26"
 #define DEH_TEMP_H              27.50       // Dehumidifier Temperature during H hours
-#define COLD_HIDX_H             24.45       // use Heat Index during H hours
+#define COLD_TEMP_H             26.00       // use Heat Index during H hours
+
+// Col Heat Index Rh criteria
+#define COLD_RH                 55.00
 
 #define TEMP_BOOST_CMD          "att23"
 #define FAN_SPEED_NIGHT         "atf6"
@@ -79,8 +82,8 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
-float coldTempHi = COLD_HIDX;
-float coldTempHiH = COLD_HIDX_H;
+float coldTempHi = 25.00;
+float coldTempHiH = 25.00;
 
 bool daikin_boost = false;
 
@@ -123,12 +126,37 @@ void setup() {
     autoOnTimerHour = 25;  // there is no clock hour 25
     current_H_hours = false; // assume the RhT control is enabled outside the H hours
 
+    // calculate cold heat index criteria
+    coldTempHi = heatIndex(COLD_TEMP, COLD_RH);
+    coldTempHiH = heatIndex(COLD_TEMP_H, COLD_RH);
+
     // set the air conditioning to the default modes
     Serial1.println(TEMP_AC_CMD_LO);
     Serial1.println(FAN_SPEED_NIGHT);
 
     // log the event
     Particle.publish("o2sensor", INIT_STR);
+}
+
+
+/**
+ * Heat Index Calculator
+ * Code based on Robtillaart's post on http://forum.arduino.cc/index.php?topic=107569.0
+ */
+float heatIndex(double tempC, double humidity)
+{
+ double c1 = -42.38, c2 = 2.049, c3 = 10.14, c4 = -0.2248, c5= -6.838e-3, c6=-5.482e-2, c7=1.228e-3, c8=8.528e-4, c9=-1.99e-6;
+ double T = (tempC * ((double) 9 / (double) 5)) + (double) 32;
+ double R = humidity;
+
+ double A = (( c5 * T) + c2) * T + c1;
+ double B = ((c7 * T) + c4) * T + c3;
+ double C = ((c9 * T) + c8) * T + c6;
+
+ double rv = (C * R + B) * R + A;
+ double rvC = (rv - (double) 32) * ((double) 5 / (double) 9);
+
+ return ((float) rvC);
 }
 
 
@@ -662,14 +690,11 @@ void myHandler(const char *event, const char *data)
         {
           // log the event
           Particle.publish("o2sensor", "RhT-Auto Enabled");
+          String hiSetLog = "Set Cold HI to " + String(coldTempHi, 2) + ", H:" + String(coldTempHiH, 2);
+          Particle.publish("o2sensor", hiSetLog);
 
           // restore the defaults
           Serial1.println(TEMP_AC_CMD_LO);
-
-          // set temperature criteria
-          coldTempHi = COLD_HIDX;
-          coldTempHiH = COLD_HIDX_H;
-
           Serial1.println(FAN_SPEED_NIGHT);
 
           // enable RHT Control
