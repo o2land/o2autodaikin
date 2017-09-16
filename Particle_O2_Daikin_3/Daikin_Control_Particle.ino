@@ -26,17 +26,17 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.7.2, 2017-09-17"
+#define INIT_STR                "RhT Control System Initialized V3.7.3, 2017-09-17"
 
 // ambient environmental parameters during normal hours
 #define TEMP_AC_CMD_LO          "att25"
 #define DEH_TEMP                26.50       // Dehumidifier Temperature
-#define COLD_TEMP               25.00       // use Heat Index
+#define COLD_TEMP               24.60       // use Heat Index
 
 // ambient environmental parameters during H hours
 #define TEMP_AC_CMD_HI          "att26"
 #define DEH_TEMP_H              27.50       // Dehumidifier Temperature during H hours
-#define COLD_TEMP_H             26.00       // use Heat Index during H hours
+#define COLD_TEMP_H             25.60       // use Heat Index during H hours
 
 // Col Heat Index Rh criteria
 #define COLD_RH                 55.00
