@@ -26,18 +26,18 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.6.1, 2017-09-03"
+#define INIT_STR                "RhT Control System Initialized V3.7.1, 2017-09-17"
 
-// ambient environmental parameters
-#define AC_USE_LO               29.00       // when enable rht control, if current temperature is higher than this, use AC_CMD_LO
-#define DEH_TEMP                26.00       // This is (TEMP_AC_CMD + 2) because AC may stop running below that point
-#define A_COLD_TEMP_HI          24.20       // use Heat Index (use with AC_USE_LO)
-#define A_COLD_TEMP_HI_H        24.45       // use Heat Index (Higher Tempeature Period) (use with AC_USE_LO)
-#define B_COLD_TEMP_HI          25.00       // use Heat Index
-#define B_COLD_TEMP_HI_H        25.25       // use Heat Index (Higher Tempeature Period)
+// ambient environmental parameters during normal hours
+#define TEMP_AC_CMD_LO          "att25"
+#define DEH_TEMP                26.50       // Dehumidifier Temperature
+#define COLD_HIDX               24.20       // use Heat Index
 
-#define TEMP_AC_CMD_LO          "att24"
-#define TEMP_AC_CMD_HI          "att25"
+// ambient environmental parameters during H hours
+#define TEMP_AC_CMD_HI          "att26"
+#define DEH_TEMP_H              27.50       // Dehumidifier Temperature during H hours
+#define COLD_HIDX_H             24.45       // use Heat Index during H hours
+
 #define TEMP_BOOST_CMD          "att23"
 #define FAN_SPEED_NIGHT         "atf6"
 #define FAN_SPEED_BOOST         "atf5"
@@ -79,8 +79,8 @@ float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
 
-float coldTempHi = A_COLD_TEMP_HI;
-float coldTempHiH = A_COLD_TEMP_HI_H;
+float coldTempHi = COLD_HIDX;
+float coldTempHiH = COLD_HIDX_H;
 
 bool daikin_boost = false;
 
@@ -88,6 +88,8 @@ bool rht_control_on = false;
 
 int autoOffTimerHour = 25;  // auto off control
 int autoOnTimerHour = 25;   // auto on control
+
+bool current_H_hours = false; // track the H hours
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -119,6 +121,7 @@ void setup() {
     rht_control_on = false;
     autoOffTimerHour = 25;  // there is no clock hour 25
     autoOnTimerHour = 25;  // there is no clock hour 25
+    current_H_hours = false; // assume the RhT control is enabled outside the H hours
 
     // set the air conditioning to the default modes
     Serial1.println(TEMP_AC_CMD_LO);
@@ -296,6 +299,31 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     bool hTempTime = (Time.hour() >= HTEMP_BEGIN_HOUR && Time.hour() < HTEMP_END_HOUR) ? true : false;
+
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Track the H hours and switch the temperature setting if enters to or exits from the H hours
+    // ---------------------------------------------------------------------------------------------------------------------------------
+
+    if(rht_control_on)
+    {
+      if((!current_H_hours) && hTempTime)
+      {
+        // enters to H hours
+        Particle.publish("o2sensor", "H hours begins");
+
+        Serial1.println(TEMP_AC_CMD_HI);
+      }
+      else if(current_H_hours && (!hTempTime))
+      {
+        // exits from H hours
+        Particle.publish("o2sensor", "H hours ends");
+
+        Serial1.println(TEMP_AC_CMD_LO);
+      }
+    }
+
+    // track it
+    current_H_hours = hTempTime;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Check auto on timer (Check ON first, then OFF, in case OFF/ON at the same time)
@@ -536,6 +564,7 @@ void loop()
 
     // determine cold temperature criteria based on the current time
     float coldTemp = hTempTime ? coldTempHiH : coldTempHi;
+    float dehTemp = hTempTime ? DEH_TEMP_H : DEH_TEMP;
 
     // performing daikin control only when RHT Control is enabled and not in boost mode
     if(rht_control_on && !daikin_boost)
@@ -547,7 +576,7 @@ void loop()
 
         // if COLD_TEMP <= temp <= DEH_TEMP
         if(((float) currentHI >= (float) coldTemp) &&
-           ((float) currentTemp <= (float) DEH_TEMP))
+           ((float) currentTemp <= (float) dehTemp))
         {
           if(currentMode != MODE_DEHUMIDIFIER)
           {
@@ -635,25 +664,11 @@ void myHandler(const char *event, const char *data)
           Particle.publish("o2sensor", "RhT-Auto Enabled");
 
           // restore the defaults
-          if((float) currentTemp > (float) AC_USE_LO)
-          {
-            Serial1.println(TEMP_AC_CMD_LO);
+          Serial1.println(TEMP_AC_CMD_LO);
 
-            // set temperature criteria
-            coldTempHi = A_COLD_TEMP_HI;
-            coldTempHiH = A_COLD_TEMP_HI_H;
-          }
-          else
-          {
-            Serial1.println(TEMP_AC_CMD_HI);
-
-            // set temperature criteria
-            coldTempHi = B_COLD_TEMP_HI;
-            coldTempHiH = B_COLD_TEMP_HI_H;
-
-            // log the event
-            Particle.publish("o2sensor", "AC_CMD use high temperature setting");
-          }
+          // set temperature criteria
+          coldTempHi = COLD_HIDX;
+          coldTempHiH = COLD_HIDX_H;
 
           Serial1.println(FAN_SPEED_NIGHT);
 
