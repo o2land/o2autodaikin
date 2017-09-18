@@ -26,7 +26,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.8.1, 2017-09-18"
+#define INIT_STR                "RhT Control System Initialized V3.8.2, 2017-09-18"
 
 // ambient environmental parameters during normal hours
 #define TEMP_AC_CMD_LO          "att25"
@@ -389,23 +389,20 @@ void loop()
 
     if(Time.hour() == autoOffTimerHour)
     {
-      if(rht_control_on)
-      {
-        // disable RHT control
-        rht_control_on = false;
+      // disable RHT control
+      rht_control_on = false;
 
-        // don't boost for the next run
-        daikin_boost = false;
+      // don't boost for the next run
+      daikin_boost = false;
 
-        // turn AC off
-        daikin_off();
+      // turn AC off
+      daikin_off();
 
-        // external FAN on if AC is turned off by timer
-        fan_on();
+      // external FAN on if AC is turned off by timer
+      fan_on();
 
-        // send the log
-        Particle.publish("o2sensor", "RhT Off by the Auto Off Timer");
-      }
+      // send the log
+      Particle.publish("o2sensor", "RhT Off by the Auto Off Timer");
 
       // clear timer
       autoOffTimerHour = 25;
