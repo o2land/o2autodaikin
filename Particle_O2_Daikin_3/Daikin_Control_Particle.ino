@@ -26,17 +26,17 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V3.7.3, 2017-09-17"
+#define INIT_STR                "RhT Control System Initialized V3.8.1, 2017-09-18"
 
 // ambient environmental parameters during normal hours
 #define TEMP_AC_CMD_LO          "att25"
-#define DEH_TEMP                26.50       // Dehumidifier Temperature
-#define COLD_TEMP               24.60       // use Heat Index
+#define DEH_TEMP                26.50       // Dehumidifier Temperature (CMD + 1.5)
+#define COLD_TEMP               24.60       // use Heat Index (CMD - 0.4)
 
 // ambient environmental parameters during H hours
 #define TEMP_AC_CMD_HI          "att26"
-#define DEH_TEMP_H              27.50       // Dehumidifier Temperature during H hours
-#define COLD_TEMP_H             25.60       // use Heat Index during H hours
+#define DEH_TEMP_H              27.50       // Dehumidifier Temperature during H hours (CMD + 1.5)
+#define COLD_TEMP_H             25.60       // use Heat Index during H hours (CMD 0 0.4)
 
 // Col Heat Index Rh criteria
 #define COLD_RH                 55.00
@@ -780,6 +780,60 @@ void myHandler(const char *event, const char *data)
 
           // Turn RGB LED off
           rgb_led_off();
+        }
+      }
+    }
+    else if(ingredient.indexOf("cool-on-") > -1)
+    {
+      // Turn on AC Cool supports only
+      // cool-on-22
+      // cool-on-23
+      // cool-on-24
+      // cool-on-25
+      // cool-on-26
+
+      if(ingredient.length() == 10)
+      {
+        int searchIdx = ingredient.indexOf("cool-on-");
+        int coolTemp = ingredient.substring(searchIdx + 8).toInt();
+
+        // log the config
+        if(coolTemp >= 22 && coolTemp <= 26)
+        {
+          Particle.publish("o2sensor", "Manually turn on AC and set temperature to " + String(coolTemp));
+
+          switch(coolTemp)
+          {
+            case 22:
+              Serial1.println("att22");
+              break;
+
+            case 23:
+              Serial1.println("att23");
+              break;
+
+            case 24:
+              Serial1.println("att24");
+              break;
+
+            case 25:
+              Serial1.println("att25");
+              break;
+
+            case 26:
+              Serial1.println("att26");
+              break;
+          }
+
+          // set fan speed
+          Serial1.println(FAN_SPEED_NIGHT);
+
+          // turn on AC
+          daikin_ac_on();
+        }
+        else
+        {
+          Particle.publish("o2sensor", "Invalid AC temperature command " + String(coolTemp));
         }
       }
     }
