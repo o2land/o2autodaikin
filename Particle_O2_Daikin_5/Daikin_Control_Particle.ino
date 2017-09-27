@@ -16,37 +16,45 @@
 
 // Adjustment Logic:
 //
-// if (rh >= RH_HIGH) && (temp >= TEMP_SET), use DEH, otherwise use AC
+// Starting from 26 degrees
+// Check every REMAIN minutes
+// heat index > HI_HIGH --> down 1 degree
+// heat index < HI_LOW --> up 1 degree
+// otherwise stay
+//
+// degree range 24 - 26
 //
 // boost mode, use lower temp and higher fan without further control
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.0.5, 2017-09-24"
+#define INIT_STR                "RhT Control System Initialized V5.1.0, 2017-09-25"
 
 // ambient environmental parameters during normal hours
-#define TEMP_AC_CMD_LO          "att26"
-#define TEMP_SET                27.15
+#define HI_HIGH                 26.50
+#define HI_LOW                  26.00
 
 // ambient environmental parameters during H hours
-#define TEMP_AC_CMD_HI          "att26"
-#define TEMP_SET_H              27.15
-
-// Cold Heat Index Rh criteria
-#define RH_HIGH                 79.00
-
-#define TEMP_BOOST_CMD          "att23"
-#define FAN_SPEED_NIGHT         "atf6"
-#define FAN_SPEED_BOOST         "atf5"
+#define HI_HIGH_H               26.60
+#define HI_LOW_H                26.10
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
-#define REMAIN_MODE_TIME_AC     15          // in minutes
-#define REMAIN_MODE_TIME_DH     5           // in minutes
+#define REMAIN_MODE_TIME       10          // in minutes
 
 // higher temperature time period (on hour), use TEMP_SET_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
 #define HTEMP_END_HOUR          6           // 6:00 AM
+
+// other control parameters
+#define TEMP_BOOST_CMD          "att23"
+#define FAN_SPEED_NIGHT         "atf6"
+#define FAN_SPEED_BOOST         "atf5"
+
+// AC setting
+#define AC_START_TEMP           26
+#define AC_SETTING_HIGH         26
+#define AC_SETTING_LOW          24
 
 // -----------------------------------------------------------------------------------------------------------------
 // status and control parameters
@@ -75,6 +83,7 @@ float currentTemp = 0;
 float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
+float last10minTemp = 0;
 
 bool daikin_boost = false;
 
@@ -84,6 +93,8 @@ int autoOffTimerHour = 25;  // auto off control
 int autoOnTimerHour = 25;   // auto on control
 
 bool current_H_hours = false; // track the H hours
+
+unsigned int currentACsetting = AC_START_TEMP;
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -118,12 +129,11 @@ void setup() {
     current_H_hours = false; // assume the RhT control is enabled outside the H hours
 
     // set the air conditioning to the default modes
-    Serial1.println(TEMP_AC_CMD_LO);
     Serial1.println(FAN_SPEED_NIGHT);
 
     // send the first reading request
-    Serial1.println("atrt"); 
-        
+    Serial1.println("atrt");
+
     // log the event
     Particle.publish("o2sensor", INIT_STR);
 }
@@ -285,6 +295,78 @@ void rgb_led_off()
 }
 
 
+void daikin_ac_on_set_temp(unsigned int setTemp)
+{
+  if(setTemp >= 22 && setTemp <= 26)
+  {
+    Particle.publish("o2sensor", "set AC temperature to " + String(setTemp));
+
+    switch(setTemp)
+    {
+      case 22:
+        Serial1.println("att22");
+        break;
+
+      case 23:
+        Serial1.println("att23");
+        break;
+
+      case 24:
+        Serial1.println("att24");
+        break;
+
+      case 25:
+        Serial1.println("att25");
+        break;
+
+      case 26:
+        Serial1.println("att26");
+        break;
+    }
+
+    // set fan speed
+    Serial1.println(FAN_SPEED_NIGHT);
+
+    // turn on AC
+    daikin_ac_on();
+  }
+  else
+  {
+    Particle.publish("o2sensor", "Invalid AC temperature setting " + String(setTemp));
+  }
+}
+
+
+/**
+ * decrease 1 degree in the range
+ */
+void ac_setting_down(void)
+{
+  if(currentACsetting > AC_SETTING_LOW)
+  {
+    currentACsetting--;
+
+    // send the command
+    daikin_ac_on_set_temp(currentACsetting);    
+  }
+}
+
+
+/**
+ * increase 1 degree in the range
+ */
+ void ac_setting_up(void)
+{
+  if(currentACsetting < AC_SETTING_HIGH)
+  {
+    currentACsetting++;
+
+    // send the command
+    daikin_ac_on_set_temp(currentACsetting);    
+  }
+}
+
+
 // =========================================================================================================
 // =========================================================================================================
 // =========================================================================================================
@@ -304,13 +386,7 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Determine remain_mode timer based on the current mode
     // ---------------------------------------------------------------------------------------------------------------------------------
-    unsigned int useRemainModeTime = REMAIN_MODE_TIME_AC;
-
-    // Dehumidifer uses a shorter timer since it may pull temperature too low
-    if(currentMode == MODE_DEHUMIDIFIER)
-    {
-      useRemainModeTime = REMAIN_MODE_TIME_DH;
-    }
+    unsigned int useRemainModeTime = REMAIN_MODE_TIME;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Determine current time
@@ -328,15 +404,11 @@ void loop()
       {
         // enters to H hours
         Particle.publish("o2sensor", "H hours begins");
-
-        Serial1.println(TEMP_AC_CMD_HI);
       }
       else if(current_H_hours && (!hTempTime))
       {
         // exits from H hours
         Particle.publish("o2sensor", "H hours ends");
-
-        Serial1.println(TEMP_AC_CMD_LO);
       }
     }
 
@@ -362,6 +434,10 @@ void loop()
 
       // external FAN off if AC is turned on by timer
       fan_off();
+
+      // restore the defaults
+      currentACsetting = AC_START_TEMP;
+      daikin_ac_on_set_temp(currentACsetting);
 
       // send the log
       Particle.publish("o2sensor", "RhT On by the Auto On Timer");
@@ -578,39 +654,50 @@ void loop()
     // Environmental Control
     // ---------------------------------------------------------------------------------------------------------------------------------
 
-    // determine temperature setting to use
-    float tempSet = hTempTime ? TEMP_SET_H : TEMP_SET;
+    // make sure the temperature tracking value is obtained as early as possible
+    if(((!rht_control_on) || last10minTemp == 0) && currentTemp > 0)
+    {
+      last10minTemp = currentTemp;
+    }
 
+    // determine temperature setting to use
+    float hiHigh = hTempTime ? HI_HIGH_H : HI_HIGH;
+    float hiLow = hTempTime ? HI_LOW_H : HI_LOW;
+    
     // performing daikin control only when RHT Control is enabled and not in boost mode and all ambient parameters were obtained
-    if(rht_control_on && !daikin_boost && currentRh > 0 && currentTemp > 0)
+    if(rht_control_on && !daikin_boost && currentHI > 0 && currentTemp > 0)
     {
       // avoid frequent mode switching
       if(lastCommandSentInMinutes >= useRemainModeTime)
       {
+
         // .....................................................
-        float rhHigh = (float) RH_HIGH;
-        
-        // if currentRh >= RH_HIGH && currentTemp >= tempSet --> DEH
-        if((currentRh >= rhHigh) && (currentTemp >= tempSet))
+        // if currentHI > hiHigh --> down 1 degree
+        if(currentHI > hiHigh)
         {
-          if(currentMode != MODE_DEHUMIDIFIER)
+          // do something only when the temperature stops decreasing
+          if(currentTemp >= last10minTemp)
           {
-            daikin_dehumidifier_on();
+            // down 1 degree
+            ac_setting_down();          
+          }          
+        }
+        else if(currentHI < hiLow)
+        {
+          // do somwthing only when the temperature stops increasing
+          if(currentTemp <= last10minTemp)
+          {
+            // up 1 degree
+            ac_setting_up();
           }
         }
 
-        // .....................................................
-
-        // outside the DEH window
-        else
-        {
-          if(currentMode != MODE_COOLING)
-          {
-            daikin_ac_on();
-          }
-        }
+        // otherwise remain the same setting
 
         // .....................................................
+
+        // track per 10-minute temperature
+        last10minTemp = currentTemp;
 
       } // end REMAIN_MODE_TIME
 
@@ -651,8 +738,8 @@ void myHandler(const char *event, const char *data)
             daikin_boost = false;
 
             // restore the defaults
-            Serial1.println(TEMP_AC_CMD_LO); // since boost is used, low setting is assumed
-            Serial1.println(FAN_SPEED_NIGHT);
+            currentACsetting = AC_START_TEMP;
+            daikin_ac_on_set_temp(currentACsetting);
 
             // turn off external fan
             fan_off();
@@ -679,8 +766,8 @@ void myHandler(const char *event, const char *data)
           Particle.publish("o2sensor", "RhT-Auto Enabled");
 
           // restore the defaults
-          Serial1.println(TEMP_AC_CMD_LO);
-          Serial1.println(FAN_SPEED_NIGHT);
+          currentACsetting = AC_START_TEMP;
+          daikin_ac_on_set_temp(currentACsetting);
 
           // enable RHT Control
           rht_control_on = true;
@@ -748,6 +835,9 @@ void myHandler(const char *event, const char *data)
         if(autoOnTimerHour >= 0 && autoOnTimerHour <= 24)
         {
           Particle.publish("o2sensor", "RhT Auto On at " + String(autoOnTimerHour) + ":00");
+
+          // restore the defaults
+          currentACsetting = AC_START_TEMP;
 
           // Auto-ON mode is important, so lid the RGB LED
           RGB.control(true);
