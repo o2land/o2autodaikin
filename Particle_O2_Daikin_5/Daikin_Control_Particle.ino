@@ -28,7 +28,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.1.0, 2017-09-25"
+#define INIT_STR                "RhT Control System Initialized V5.1.2, 2017-09-28"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.50
@@ -691,6 +691,10 @@ void loop()
             ac_setting_up();
           }
         }
+        else
+        {
+          Particle.publish("o2sensor", "temperature control remains good condition");
+        }
 
         // otherwise remain the same setting
 
@@ -698,6 +702,7 @@ void loop()
 
         // track per 10-minute temperature
         last10minTemp = currentTemp;
+        Particle.publish("o2sensor", "track 10-minute temperature = " + String(last10minTemp, 2));
 
       } // end REMAIN_MODE_TIME
 
