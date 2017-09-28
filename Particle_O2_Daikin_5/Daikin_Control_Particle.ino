@@ -28,15 +28,15 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.1.2, 2017-09-28"
+#define INIT_STR                "RhT Control System Initialized V5.2.1, 2017-09-28"
 
 // ambient environmental parameters during normal hours
-#define HI_HIGH                 26.50
+#define HI_HIGH                 26.90
 #define HI_LOW                  26.00
 
 // ambient environmental parameters during H hours
-#define HI_HIGH_H               26.60
-#define HI_LOW_H                26.10
+#define HI_HIGH_H               27.50
+#define HI_LOW_H                26.50
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
@@ -83,7 +83,6 @@ float currentTemp = 0;
 float currentRh = 0;
 float currentHI = 0;
 unsigned int currentReadCount = 0;
-float last10minTemp = 0;
 
 bool daikin_boost = false;
 
@@ -95,6 +94,8 @@ int autoOnTimerHour = 25;   // auto on control
 bool current_H_hours = false; // track the H hours
 
 unsigned int currentACsetting = AC_START_TEMP;
+
+float last10minTemps[10] = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -363,6 +364,37 @@ void ac_setting_down(void)
 
     // send the command
     daikin_ac_on_set_temp(currentACsetting);    
+  }
+}
+
+
+/**
+ * Insert current temperature into the 10-minute tracking array
+ * Init the array if this is the first one
+ * The latest one is always last10minTemps[0]
+ */
+void insert_temperature(float t)
+{
+  unsigned int i;
+
+  // initialize the array if it has not happened
+  if(last10minTemps[0] == 0)
+  {
+    for(i=0; i < 10; i++)
+    {
+      last10minTemps[i] = t;
+    }
+  }
+  else
+  {
+    // remove the latest one, and shift every one in the memory
+    for(i=0; i < 9; i++)
+    {
+      last10minTemps[i] = last10minTemps[i + 1];
+    }
+
+    // insert the new one
+    last10minTemps[9] = t;
   }
 }
 
@@ -636,6 +668,12 @@ void loop()
 
                     // publish it
                     Particle.publish("o2sensor", txtOutput);
+
+                    // tracking temperature history
+                    if(currentTemp > 0)
+                    {
+                      insert_temperature(currentTemp);
+                    }
                 } // end if(xtracted)
             } // end of extraction
 
@@ -654,12 +692,6 @@ void loop()
     // Environmental Control
     // ---------------------------------------------------------------------------------------------------------------------------------
 
-    // make sure the temperature tracking value is obtained as early as possible
-    if(((!rht_control_on) || last10minTemp == 0) && currentTemp > 0)
-    {
-      last10minTemp = currentTemp;
-    }
-
     // determine temperature setting to use
     float hiHigh = hTempTime ? HI_HIGH_H : HI_HIGH;
     float hiLow = hTempTime ? HI_LOW_H : HI_LOW;
@@ -676,7 +708,7 @@ void loop()
         if(currentHI > hiHigh)
         {
           // do something only when the temperature stops decreasing
-          if(currentTemp >= last10minTemp)
+          if(currentTemp >= last10minTemps[0])
           {
             // down 1 degree
             ac_setting_down();          
@@ -685,7 +717,7 @@ void loop()
         else if(currentHI < hiLow)
         {
           // do somwthing only when the temperature stops increasing
-          if(currentTemp <= last10minTemp)
+          if(currentTemp <= last10minTemps[0])
           {
             // up 1 degree
             ac_setting_up();
@@ -699,10 +731,6 @@ void loop()
         // otherwise remain the same setting
 
         // .....................................................
-
-        // track per 10-minute temperature
-        last10minTemp = currentTemp;
-        Particle.publish("o2sensor", "track 10-minute temperature = " + String(last10minTemp, 2));
 
       } // end REMAIN_MODE_TIME
 
