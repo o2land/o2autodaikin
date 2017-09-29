@@ -28,7 +28,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.2.1, 2017-09-28"
+#define INIT_STR                "RhT Control System Initialized V5.2.2, 2017-09-29"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.90
@@ -619,7 +619,7 @@ void loop()
                             break;
 
                         case MODE_COOLING:
-                            modeStr = "AC";
+                            modeStr = "AC" + String(currentACsetting);
                             break;
 
                         case MODE_DEHUMIDIFIER:
@@ -722,10 +722,6 @@ void loop()
             // up 1 degree
             ac_setting_up();
           }
-        }
-        else
-        {
-          Particle.publish("o2sensor", "temperature control remains good condition");
         }
 
         // otherwise remain the same setting
