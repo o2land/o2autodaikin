@@ -28,15 +28,15 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.2.2, 2017-09-29"
+#define INIT_STR                "RhT Control System Initialized V5.2.8, 2017-10-07"
 
 // ambient environmental parameters during normal hours
-#define HI_HIGH                 26.90
-#define HI_LOW                  26.00
+#define HI_HIGH                 26.15
+#define HI_LOW                  25.65
 
 // ambient environmental parameters during H hours
-#define HI_HIGH_H               27.50
-#define HI_LOW_H                26.50
+#define HI_HIGH_H               26.70
+#define HI_LOW_H                26.00
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
@@ -44,7 +44,7 @@
 
 // higher temperature time period (on hour), use TEMP_SET_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
-#define HTEMP_END_HOUR          6           // 6:00 AM
+#define HTEMP_END_HOUR          5           // 5:00 AM
 
 // other control parameters
 #define TEMP_BOOST_CMD          "att23"
