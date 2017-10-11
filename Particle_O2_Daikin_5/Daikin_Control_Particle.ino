@@ -28,7 +28,7 @@
 //
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V5.2.8, 2017-10-07"
+#define INIT_STR                "RhT Control System Initialized V5.3.1, 2017-10-11"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.15
@@ -41,6 +41,7 @@
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
 #define REMAIN_MODE_TIME       10          // in minutes
+#define REMAIN_MODE_TIME_HOT    2          // used when temperature setting needs to be decreased
 
 // higher temperature time period (on hour), use TEMP_SET_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
@@ -416,11 +417,6 @@ void loop()
     systemUpTimerInMinutes = elapsed_system_up_timer / (long) 60000;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // Determine remain_mode timer based on the current mode
-    // ---------------------------------------------------------------------------------------------------------------------------------
-    unsigned int useRemainModeTime = REMAIN_MODE_TIME;
-
-    // ---------------------------------------------------------------------------------------------------------------------------------
     // Determine current time
     // ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -447,6 +443,23 @@ void loop()
     // track it
     current_H_hours = hTempTime;
 
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Determine temperature setting to use
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    float hiHigh = hTempTime ? HI_HIGH_H : HI_HIGH;
+    float hiLow = hTempTime ? HI_LOW_H : HI_LOW;
+    
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    // Determine remain_mode timer based on the current mode
+    // ---------------------------------------------------------------------------------------------------------------------------------
+    unsigned int useRemainModeTime = REMAIN_MODE_TIME;
+    
+    // hot ambient environment takes different remain timer
+    if(currentHI > 0 && currentHI > hiHigh)
+    {
+      useRemainModeTime = REMAIN_MODE_TIME_HOT;
+    }
+            
     // ---------------------------------------------------------------------------------------------------------------------------------
     // Check auto on timer (Check ON first, then OFF, in case OFF/ON at the same time)
     // ---------------------------------------------------------------------------------------------------------------------------------
@@ -692,17 +705,12 @@ void loop()
     // Environmental Control
     // ---------------------------------------------------------------------------------------------------------------------------------
 
-    // determine temperature setting to use
-    float hiHigh = hTempTime ? HI_HIGH_H : HI_HIGH;
-    float hiLow = hTempTime ? HI_LOW_H : HI_LOW;
-    
     // performing daikin control only when RHT Control is enabled and not in boost mode and all ambient parameters were obtained
     if(rht_control_on && !daikin_boost && currentHI > 0 && currentTemp > 0)
     {
       // avoid frequent mode switching
       if(lastCommandSentInMinutes >= useRemainModeTime)
       {
-
         // .....................................................
         // if currentHI > hiHigh --> down 1 degree
         if(currentHI > hiHigh)
