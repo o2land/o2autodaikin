@@ -6,8 +6,8 @@
   message to o2daikin
   command:
     daikin-auto                 enable auto control
-    daikin-off                  turn OFF (but auto control is still there)
-    rht-disable                 disable auto control
+    daikin-off                  disable auto contro
+    auto-dryer                  enable auto control starting from dehumidifier (working only out of H_HOURS)
 
     auto-off-[hour]             turn off at [hour] o'clock  (25 to disable)
     auto-on-[hour]              turn on at [hour] o'clock   (25 to disable)
@@ -35,19 +35,21 @@
 // otherwise stay in the degree range 24 - 26
 //
 // Switch to dehumidifier mode during the HTEMP hours
-// until the heat index is higher than HI_TOO_HIGH
-// or lower than HI_TOO_LOW
+// until the heat index is higher than TEMP_TOO_HIGH
+// or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.3.1, 2018-06-17"
+#define INIT_STR                "RhT Control System Initialized V6.7.3, 2018-06-17"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.15
 #define HI_LOW                  25.65
 
 // ambient environmental parameters during H hours
-#define HI_TOO_HIGH             28.50
-#define HI_TOO_LOW              23.00
+#define HI_TOO_HIGH             28.50      // for remaining minutes determination
+#define HI_TOO_LOW              23.00      // for remaining minutes determination
+#define TEMP_TOO_HIGH           27.80      // for dehumidifier mode cancellation
+#define TEMP_TOO_LOW            22.90      // for dehumidifier mode cancellation
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
@@ -526,11 +528,11 @@ void loop()
     current_H_hours = hTempTime;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // Determine H hours dehumidifier needs to be cancelled earlier
+    // Determine H hours dehumidifier needs to be cancelled earlier by temperature (not heat index)
     // ---------------------------------------------------------------------------------------------------------------------------------
     if(H_hours_dehumidifier_on)
     {
-        if(currentHI > HI_TOO_HIGH || currentHI < HI_TOO_LOW)
+        if(currentTemp > 0 && (currentTemp > TEMP_TOO_HIGH || currentTemp < TEMP_TOO_LOW))
         {
           // cancel H hours dehumidifier mode
           H_hours_dehumidifier_on = false;
@@ -543,7 +545,7 @@ void loop()
           daikin_ac_on_set_temp(currentACsetting);
 
           // exits from H hours
-          Particle.publish("o2sensor", "current heat index went out of range, stop H-hour dehumidifier");
+          Particle.publish("o2sensor", "current temperature went out of range, stop H-hour dehumidifier");
         }
     }
 
@@ -585,7 +587,6 @@ void loop()
       daikin_ac_on_set_temp(currentACsetting);
       currentFANsetting = 6;
       H_hours_dehumidifier_on = false;
-      current_H_hours = false;
 
       // send the log
       Particle.publish("o2sensor", "RhT On by the Auto On Timer");
@@ -874,7 +875,6 @@ void myHandler(const char *event, const char *data)
           daikin_ac_on_set_temp(currentACsetting);
           currentFANsetting = 6;
           H_hours_dehumidifier_on = false;
-          current_H_hours = false;
 
           // enable RHT Control
           rht_control_on = true;
@@ -893,6 +893,30 @@ void myHandler(const char *event, const char *data)
 
       // Turn RGB LED off
       rgb_led_off();
+    }
+    else if(ingredient.indexOf("auto-dryer") > -1)
+    {
+      // starting RHT auto-control but starting from a dryer mode
+
+      // make it like RHT start
+      elapsed_remain_mode_timer = 60 * (long) 60000;
+      elapsed_system_up_timer = 0;
+
+      // no RHT control at this moment untul dehumidifer mode is cancelled
+      rht_control_on = false;
+
+      // restore the defaults
+      currentACsetting = AC_START_TEMP;
+      currentFANsetting = 6;
+
+      // manually set the current hours as H_HOURS
+      H_hours_dehumidifier_on = true;
+
+      // switch to dehumidifier mode
+      daikin_dehumidifier_on();
+
+      // log the event
+      Particle.publish("o2sensor", "RhT-Auto Enabled starting from dehumidifier");
     }
     else if(ingredient.indexOf("auto-off-") > -1)
     {
