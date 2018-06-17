@@ -39,7 +39,7 @@
 // or lower than HI_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.2.3, 2018-06-17"
+#define INIT_STR                "RhT Control System Initialized V6.3.1, 2018-06-17"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.15
@@ -52,7 +52,7 @@
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
 #define REMAIN_MODE_TIME       10          // in minutes
-#define REMAIN_MODE_TIME_HOT    2          // used when temperature setting needs to be decreased
+#define REMAIN_MODE_TIME_EXT    2          // used when temperature goes extreme
 
 // higher temperature time period (on hour), use TEMP_SET_H during this time period
 #define HTEMP_BEGIN_HOUR        3           // 3:00 AM
@@ -559,9 +559,9 @@ void loop()
     unsigned int useRemainModeTime = REMAIN_MODE_TIME;
     
     // hot ambient environment takes different remain timer
-    if(currentHI > 0 && currentHI > hiHigh)
+    if(currentHI > 0 && (currentHI > HI_TOO_HIGH || currentHI < HI_TOO_LOW))
     {
-      useRemainModeTime = REMAIN_MODE_TIME_HOT;
+      useRemainModeTime = REMAIN_MODE_TIME_EXT;
     }
             
     // ---------------------------------------------------------------------------------------------------------------------------------
