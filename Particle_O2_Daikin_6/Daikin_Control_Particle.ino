@@ -39,7 +39,7 @@
 // or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.7.3, 2018-06-17"
+#define INIT_STR                "RhT Control System Initialized V6.7.5, 2018-06-17"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.15
@@ -761,7 +761,7 @@ void loop()
                         }
                         else
                         {
-                            txtOutput += ", " + modeStr + ", NO_Ctrl";
+                            txtOutput += ", " + modeStr + ", Constant";
                         }
                     }
                     else
