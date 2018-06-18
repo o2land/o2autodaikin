@@ -39,7 +39,7 @@
 // or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.7.5, 2018-06-17"
+#define INIT_STR                "RhT Control System Initialized V6.8.1, 2018-06-19"
 
 // ambient environmental parameters during normal hours
 #define HI_HIGH                 26.15
@@ -606,6 +606,9 @@ void loop()
     {
       // disable RHT control
       rht_control_on = false;
+
+      // also turn off the auto-dryer mode
+      H_hours_dehumidifier_on = false;
 
       // turn AC off
       daikin_off();
