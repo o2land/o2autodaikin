@@ -39,17 +39,17 @@
 // or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.8.1, 2018-06-19"
+#define INIT_STR                "RhT Control System Initialized V6.8.2, 2018-06-23"
 
 // ambient environmental parameters during normal hours
-#define HI_HIGH                 26.15
-#define HI_LOW                  25.65
+#define HI_HIGH                 26.60
+#define HI_LOW                  25.90
 
 // ambient environmental parameters during H hours
 #define HI_TOO_HIGH             28.50      // for remaining minutes determination
 #define HI_TOO_LOW              23.00      // for remaining minutes determination
-#define TEMP_TOO_HIGH           27.80      // for dehumidifier mode cancellation
-#define TEMP_TOO_LOW            22.90      // for dehumidifier mode cancellation
+#define TEMP_TOO_HIGH           27.50      // for dehumidifier mode cancellation
+#define TEMP_TOO_LOW            23.75      // for dehumidifier mode cancellation
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
