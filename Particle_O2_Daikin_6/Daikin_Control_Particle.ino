@@ -7,10 +7,10 @@
   command:
     daikin-auto                 enable auto control
     daikin-off                  disable auto contro
-    auto-dryer                  enable auto control starting from dehumidifier (working only out of H_HOURS)
+    auto-dryer                  enable auto control starting from dehumidifier
 
     auto-off-[hour]             turn off at [hour] o'clock  (25 to disable)
-    auto-on-[hour]              turn on at [hour] o'clock   (25 to disable)
+    auto-pause                  turn off at preset time until ambient temperature hits the limit
     cool-on-[degree]            set ac temperature to [degree] (22 ~ 26) (auto-control will be disabled)
     drying-on                   switch to dehumidifier (auto-control will be disabled)
 
@@ -34,31 +34,36 @@
 // heat index < HI_LOW --> up 1 degree
 // otherwise stay in the degree range 24 - 26
 //
-// Switch to dehumidifier mode during the HTEMP hours
-// until the heat index is higher than TEMP_TOO_HIGH
-// or lower than TEMP_TOO_LOW
+// Auto Cooling is used internally
+// Either Auto Dryer or Auto Pause may switch to Auto Cooling
+//
+// Auto Cooling criterias to switch mode to Cooling:
+//  the temperature is higher than TEMP_TOO_HIGH
+//  or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.8.2, 2018-06-23"
+#define INIT_STR                "RhT Control System Initialized V6.9.3, 2018-07-22"
 
-// ambient environmental parameters during normal hours
-#define HI_HIGH                 26.60
-#define HI_LOW                  25.90
+// ambient environmental control parameters
+#define HI_HIGH                 26.60      // higher than this, AC gets 1 degree less 
+#define HI_LOW                  25.90      // lower than this, AC gets 1 degree more
 
 // ambient environmental parameters during H hours
 #define HI_TOO_HIGH             28.50      // for remaining minutes determination
 #define HI_TOO_LOW              23.00      // for remaining minutes determination
-#define TEMP_TOO_HIGH           27.50      // for dehumidifier mode cancellation
-#define TEMP_TOO_LOW            23.75      // for dehumidifier mode cancellation
+#define TEMP_TOO_HIGH           28.30      // for Auto Cooling cancellation
+#define TEMP_TOO_LOW            23.75      // for Auto Cooling cancellation
+
+// auto pause time and temperature limit
+#define AUTO_PAUSE_HOUR         3          // auto pause time
+#define AUTO_PAUSE_MINUTE       30         // at 3:30 AM
+#define AUTO_PAUSE_GUARD_HOUR   3          // do not rerun AC
+#define AUTO_PAUSE_GUARD_MINUTE 45         // until 3:45 AM
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
 #define REMAIN_MODE_TIME       10          // in minutes
 #define REMAIN_MODE_TIME_EXT    2          // used when temperature goes extreme
-
-// higher temperature time period (on hour), use TEMP_SET_H during this time period
-#define HTEMP_BEGIN_HOUR        3           // 3:00 AM
-#define HTEMP_END_HOUR          5           // 5:00 AM
 
 // other control parameters
 #define FAN_SPEED_NIGHT         "atf6"
@@ -98,11 +103,9 @@ unsigned int currentReadCount = 0;
 
 bool rht_control_on = false;
 
-int autoOffTimerHour = 25;  // auto off control
-int autoOnTimerHour = 25;   // auto on control
-
-bool current_H_hours = false; // track the H hours
-bool H_hours_dehumidifier_on = false; // track the dehimidifier status during the H hours
+int autoOffTimerHour = 25;    // auto off control
+bool auto_pause = false;      // auto pause control
+bool auto_cooling = false;    // once this is on, the mode can switch to cooling when criterias are met
 
 unsigned int currentACsetting = AC_START_TEMP;
 unsigned int currentFANsetting = 6;
@@ -137,8 +140,7 @@ void setup() {
     // other default state settings
     rht_control_on = false;
     autoOffTimerHour = 25;  // there is no clock hour 25
-    autoOnTimerHour = 25;  // there is no clock hour 25
-    current_H_hours = false; // assume the RhT control is enabled outside the H hours
+    auto_pause = false;
 
     // default environmental senttings
     currentACsetting = AC_START_TEMP;
@@ -484,58 +486,47 @@ void loop()
     systemUpTimerInMinutes = elapsed_system_up_timer / (long) 60000;
 
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // Determine current time
+    // Auto Pause control
     // ---------------------------------------------------------------------------------------------------------------------------------
 
-    bool hTempTime = (Time.hour() >= HTEMP_BEGIN_HOUR && Time.hour() < HTEMP_END_HOUR) ? true : false;
-
-    // ---------------------------------------------------------------------------------------------------------------------------------
-    // Track the H hours and switch the temperature setting if enters to or exits from the H hours
-    // ---------------------------------------------------------------------------------------------------------------------------------
-
-    if(rht_control_on || H_hours_dehumidifier_on)
+    if(auto_pause && currentMode != MODE_OFF &&
+       Time.hour() == AUTO_PAUSE_HOUR && Time.minute() == AUTO_PAUSE_MINUTE)
     {
-      if((!current_H_hours) && hTempTime)
-      {
-        // enters to H hours
-        Particle.publish("o2sensor", "H hours begins, switch to dehumidifier mode");
+      Particle.publish("o2sensor", "Auto Pause turned off AC");
 
-        // stops RHT auto-control
-        rht_control_on = false;
+      // turn AC off
+      daikin_off();
 
-        // switch to dehumidifier mode
-        H_hours_dehumidifier_on = true;
-        daikin_dehumidifier_on();
-      }
-      else if(current_H_hours && (!hTempTime))
-      {
-        // re-enable RHT auto-control
-        rht_control_on = true;
+      // no RHT control at this moment until Auto Cooling is cancelled
+      rht_control_on = false;
 
-        // stops dehumidifier mode
-        H_hours_dehumidifier_on = false;
+      // temporarily disable Auto Cooling (usually enabled by Auto Dryer)
+      auto_cooling = false;
+    }
+    else if(auto_pause && currentMode == MODE_OFF &&
+            Time.hour() == AUTO_PAUSE_GUARD_HOUR && Time.minute() == AUTO_PAUSE_GUARD_MINUTE)
+    {
+      Particle.publish("o2sensor", "Auto Pause switched to Auto Cooling");
 
-        // requires at least one AC command to come back
-        currentACsetting = AC_START_TEMP;
-        daikin_ac_on_set_temp(currentACsetting);
+      // turn off Auto Pause
+      auto_pause = false;
 
-        // exits from H hours
-        Particle.publish("o2sensor", "H hours ends, switch back to RHT Auto-Control");
-      }
+      // turn off RGB LED
+      rgb_led_off();
+
+      // enable Auto Cooling
+      auto_cooling = true;
     }
 
-    // track it
-    current_H_hours = hTempTime;
-
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // Determine H hours dehumidifier needs to be cancelled earlier by temperature (not heat index)
+    // Determine if the mode needs to be switched to cooling based on the current temperature
     // ---------------------------------------------------------------------------------------------------------------------------------
-    if(H_hours_dehumidifier_on)
+    if(auto_cooling)
     {
         if(currentTemp > 0 && (currentTemp > TEMP_TOO_HIGH || currentTemp < TEMP_TOO_LOW))
         {
-          // cancel H hours dehumidifier mode
-          H_hours_dehumidifier_on = false;
+          // criterias are met, ready to switch to cooling mode
+          auto_cooling = false;
 
           // restore RHT auto-control
           rht_control_on = true;
@@ -545,7 +536,7 @@ void loop()
           daikin_ac_on_set_temp(currentACsetting);
 
           // exits from H hours
-          Particle.publish("o2sensor", "current temperature went out of range, stop H-hour dehumidifier");
+          Particle.publish("o2sensor", "current temperature goes out of range, exit Auto Cooling mode, switch current status to AC mode");
         }
     }
 
@@ -567,38 +558,6 @@ void loop()
     }
             
     // ---------------------------------------------------------------------------------------------------------------------------------
-    // Check auto on timer (Check ON first, then OFF, in case OFF/ON at the same time)
-    // ---------------------------------------------------------------------------------------------------------------------------------
-
-    if(Time.hour() == autoOnTimerHour)
-    {
-      // process the enable procedure regardless what the current control status is
-      // **************************************************************************
-      // reset system control variables
-      elapsed_remain_mode_timer = 60 * (long) 60000;  // maximize the remain_mode_timer to allow the next contorl
-      elapsed_system_up_timer = 0;  // this is a fresh start, reset must-off timer to enable the auto control
-      currentMode = MODE_OFF;  // assume the current mode off
-
-      // enable RHT control
-      rht_control_on = true;
-
-      // restore the defaults
-      currentACsetting = AC_START_TEMP;
-      daikin_ac_on_set_temp(currentACsetting);
-      currentFANsetting = 6;
-      H_hours_dehumidifier_on = false;
-
-      // send the log
-      Particle.publish("o2sensor", "RhT On by the Auto On Timer");
-
-      // clear timer
-      autoOnTimerHour = 25;
-
-      // Turn RGB LED off
-      rgb_led_off();
-    }
-
-    // ---------------------------------------------------------------------------------------------------------------------------------
     // Check auto off timer
     // ---------------------------------------------------------------------------------------------------------------------------------
 
@@ -607,8 +566,9 @@ void loop()
       // disable RHT control
       rht_control_on = false;
 
-      // also turn off the auto-dryer mode
-      H_hours_dehumidifier_on = false;
+      // also turn off the Auto Cooling mode and Auto Pause mode
+      auto_cooling = false;
+      auto_pause = false;
 
       // turn AC off
       daikin_off();
@@ -756,11 +716,17 @@ void loop()
                     String txtOutput = "Rh" + String(xRh, 2) + ", T" + String(xTemp, 2) + ", HI" + String(xHI,2);
 
                     // added the conditional stat events
-                    if(!rht_control_on && !H_hours_dehumidifier_on)
+                    // Note: when Auto Cooling is on, RHT control is off
+                    if(!rht_control_on && !auto_cooling)
                     {
                         if(currentMode == MODE_OFF)
                         {
                             txtOutput += ", NO_Ctrl";
+
+                            if(auto_pause)
+                            {
+                              txtOutput += ", Auto_Pause_Guarding";
+                            }
                         }
                         else
                         {
@@ -776,9 +742,9 @@ void loop()
                       {
                           txtOutput += ", Remain";
                       }
-                      else if(H_hours_dehumidifier_on == true)
+                      else if(auto_cooling == true)
                       {
-                          txtOutput += ", H_hour_dehumidifer";
+                          txtOutput += ", StandingBy_Auto_Cooling";
                       }
                     }
 
@@ -877,7 +843,8 @@ void myHandler(const char *event, const char *data)
           currentACsetting = AC_START_TEMP;
           daikin_ac_on_set_temp(currentACsetting);
           currentFANsetting = 6;
-          H_hours_dehumidifier_on = false;
+          auto_cooling = false;
+          auto_pause = false;
 
           // enable RHT Control
           rht_control_on = true;
@@ -891,8 +858,8 @@ void myHandler(const char *event, const char *data)
       // turn AC off
       daikin_off();
 
-      // rht off also disable auto-on
-      autoOnTimerHour = 25;
+      // rht off also cancel Auto Pause
+      auto_pause = false;
 
       // Turn RGB LED off
       rgb_led_off();
@@ -905,15 +872,15 @@ void myHandler(const char *event, const char *data)
       elapsed_remain_mode_timer = 60 * (long) 60000;
       elapsed_system_up_timer = 0;
 
-      // no RHT control at this moment untul dehumidifer mode is cancelled
+      // no RHT control at this moment until Auto Cooling is cancelled
       rht_control_on = false;
 
       // restore the defaults
       currentACsetting = AC_START_TEMP;
       currentFANsetting = 6;
 
-      // manually set the current hours as H_HOURS
-      H_hours_dehumidifier_on = true;
+      // enable Auto Cooling so the dehumidifier mode can be cancelled by temperature
+      auto_cooling = true;
 
       // switch to dehumidifier mode
       daikin_dehumidifier_on();
@@ -948,45 +915,33 @@ void myHandler(const char *event, const char *data)
         }
       }
     }
-    else if(ingredient.indexOf("auto-on-") > -1)
+    else if(ingredient.indexOf("auto-pause") > -1)
     {
-      // auto on timer is a one time valid setting
+      // auto pause timer is a one time valid setting
+      // set Auto Pause again to cancel the previously setting
       // it can be set independently from rht on/off control
-      // auto-on-1 means on at 01:00
-      // auto-on-23 means on at 23:00
-      // auto-on-25 means no auto on (because there is no 25:00)
 
-      if(ingredient.length() >= 9)
+      if(!auto_pause)
       {
-        int searchIdx = ingredient.indexOf("auto-on-");
-        autoOnTimerHour = ingredient.substring(searchIdx + 8).toInt();
+        Particle.publish("o2sensor", "RhT Auto Pause enabled");
 
-        // log the config
-        if(autoOnTimerHour >= 0 && autoOnTimerHour <= 24)
-        {
-          Particle.publish("o2sensor", "RhT Auto On at " + String(autoOnTimerHour) + ":00");
+        auto_pause = true;
 
-          // restore the defaults
-          currentACsetting = AC_START_TEMP;
-          currentFANsetting = 6;
+        // lid the RGB LED
+        RGB.control(true);
+        RGB.color(0, 100, 0);
+        delay(1000);
+        RGB.brightness(20);
+        delay(1000);
+      }
+      else
+      {
+        Particle.publish("o2sensor", "RhT Auto Pause cancelled");
 
-          // Auto-ON mode is important, so lid the RGB LED
-          RGB.control(true);
-          RGB.color(0, 100, 0);
-          delay(1000);
-          RGB.brightness(20);
-          delay(1000);
-        }
-        else
-        {
-          // set to 25 if it is not 00 through 24
-          autoOnTimerHour = 25;
+        auto_pause = false;
 
-          Particle.publish("o2sensor", "RhT Auto On Timer is disabled");
-
-          // Turn RGB LED off
-          rgb_led_off();
-        }
+        // Turn RGB LED off
+        rgb_led_off();
       }
     }
     else if(ingredient.indexOf("cool-on-") > -1)
