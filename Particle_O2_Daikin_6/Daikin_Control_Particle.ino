@@ -42,7 +42,7 @@
 //  or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.9.3, 2018-07-22"
+#define INIT_STR                "RhT Control System Initialized V6.9.4, 2018-08-06"
 
 // ambient environmental control parameters
 #define HI_HIGH                 26.60      // higher than this, AC gets 1 degree less 
@@ -58,7 +58,7 @@
 #define AUTO_PAUSE_HOUR         3          // auto pause time
 #define AUTO_PAUSE_MINUTE       30         // at 3:30 AM
 #define AUTO_PAUSE_GUARD_HOUR   3          // do not rerun AC
-#define AUTO_PAUSE_GUARD_MINUTE 45         // until 3:45 AM
+#define AUTO_PAUSE_GUARD_MINUTE 40         // until 3:40 AM
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
