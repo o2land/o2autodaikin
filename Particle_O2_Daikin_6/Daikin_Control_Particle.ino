@@ -42,7 +42,7 @@
 //  or lower than TEMP_TOO_LOW
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V6.9.4, 2018-08-06"
+#define INIT_STR                "RhT Control System Initialized V6.9.5, 2018-08-25"
 
 // ambient environmental control parameters
 #define HI_HIGH                 26.60      // higher than this, AC gets 1 degree less 
@@ -51,7 +51,7 @@
 // ambient environmental parameters during H hours
 #define HI_TOO_HIGH             28.50      // for remaining minutes determination
 #define HI_TOO_LOW              23.00      // for remaining minutes determination
-#define TEMP_TOO_HIGH           28.30      // for Auto Cooling cancellation
+#define TEMP_TOO_HIGH           28.00      // for Auto Cooling cancellation
 #define TEMP_TOO_LOW            23.75      // for Auto Cooling cancellation
 
 // auto pause time and temperature limit
