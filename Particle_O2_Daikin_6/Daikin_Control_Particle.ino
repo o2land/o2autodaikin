@@ -51,7 +51,7 @@
 // ambient environmental parameters during H hours
 #define HI_TOO_HIGH             28.50      // for remaining minutes determination
 #define HI_TOO_LOW              23.00      // for remaining minutes determination
-#define TEMP_TOO_HIGH           27.75      // for Auto Cooling cancellation
+#define TEMP_TOO_HIGH           27.60      // for Auto Cooling cancellation
 #define TEMP_TOO_LOW            23.75      // for Auto Cooling cancellation
 
 // auto pause time and temperature limit
