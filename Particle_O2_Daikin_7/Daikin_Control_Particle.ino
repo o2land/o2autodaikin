@@ -35,7 +35,7 @@
 //  the temperature is higher than TEMP_TOO_HIGH
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V7.1.1, 2019-05-02"
+#define INIT_STR                "RhT Control System Initialized V7.2.1, 2019-05-02"
 
 // ambient environmental control parameters, between DH_LOW and DH_HIGH, use dehumidifier mode
 #define AC_START_TEMP           24         // AC always starting from this temperature
@@ -723,7 +723,7 @@ void loop()
       {
         // .....................................................
         // DH need AC is priority
-        if(DHNeedAC && currentTemp <= DH_NEED_AC_HIGH)
+        if(!DHNeedAC || currentTemp <= DH_NEED_AC_HIGH)
         {
           // if currentTemp > DH_HIGH or currentTemp < DH_LOW --> use AC mode
           if((currentTemp > DH_HIGH || currentTemp < DH_LOW) && currentMode != MODE_COOLING)
