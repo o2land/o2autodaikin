@@ -35,11 +35,18 @@
 //  the temperature is higher than TEMP_TOO_HIGH
 
 // init log information
-#define INIT_STR                "RhT Control System Initialized V7.0.1, 2019-05-01"
+#define INIT_STR                "RhT Control System Initialized V7.1.1, 2019-05-02"
 
 // ambient environmental control parameters, between DH_LOW and DH_HIGH, use dehumidifier mode
-#define DH_HIGH                 25.50      // higher than this, use AC mode 
-#define DH_LOW                  22.50      // lower than this, use AC mode
+#define AC_START_TEMP           24         // AC always starting from this temperature
+#define DH_HIGH                 27.00      // higher than this, use AC mode 
+#define DH_LOW                  23.00      // lower than this, use AC mode
+
+// during DH mode, if temperature stays high for too long (this means the humidity is lower but temperature is high)
+// switch back to AC for a while
+// Note: using DH more than AC because DH is more silent
+#define DH_NEED_AC_HIGH         25.50      // this MUST be at least 1.5 degree higher than the AC_START_TEMP
+#define DH_NEED_AC_TIME         15         // in minutes, if currentTemp > DH_NEED_AC_HIGH for longer than DH_NEED_AC_TIME, switch to AC
 
 // ambient environmental parameters during H hours
 #define TEMP_TOO_HIGH           27.60      // for Auto Re-Enable RHT Control
@@ -52,13 +59,12 @@
 
 // avoid frequent ON-OFF mode switch
 //   when the mode is switched, no more action is allowed before this timer is reached
-#define REMAIN_MODE_TIME       10          // in minutes
+#define REMAIN_MODE_TIME        10         // in minutes
 
 // other control parameters
 #define FAN_SPEED_NIGHT         "atf6"
 
 // AC setting
-#define AC_START_TEMP           24         // AC always starting from this temperature
 #define AC_SETTING_HIGH         26         // manual AC setting cannot go higher than this temperature
 #define AC_SETTING_LOW          24         // manual AC setting cannot go lower than this temperature
 
@@ -81,9 +87,10 @@ unsigned int lastCommandSentInMinutes;
 unsigned int systemUpTimerInMinutes;
 
 String recvLine = "";
-elapsedMillis timeElapsed;
+elapsedMillis timeElapsedReading;
 elapsedMillis timeElapsedSyncTime;
 elapsedMillis timeElapsedResetSht;
+elapsedMillis timeElapsedDHCheck;
 
 float currentTemp = 0;
 float currentRh = 0;
@@ -98,6 +105,7 @@ bool auto_reenable_rht = false; // once this is on, the Auto RHT will be enabled
 
 unsigned int currentACsetting = AC_START_TEMP;
 unsigned int currentFANsetting = 6;
+bool DHNeedAC = false;
 
 // -----------------------------------------------------------------------------------
 void setup() {
@@ -117,9 +125,10 @@ void setup() {
     Time.zone(+8);
 
     // reset elapsed timer
-    timeElapsed = 0;
+    timeElapsedReading = 0;
     timeElapsedSyncTime = 0;
     timeElapsedResetSht = 0;
+    timeElapsedDHCheck = 0;
 
     // zero the remain_mode_timer to avoid any sudden action
     elapsed_remain_mode_timer = 0;
@@ -132,6 +141,7 @@ void setup() {
     // default environmental senttings
     currentACsetting = AC_START_TEMP;
     currentFANsetting = 6;
+    DHNeedAC = false;
 
     // set the air conditioning to the default modes
     Serial1.println(FAN_SPEED_NIGHT);
@@ -521,10 +531,10 @@ void loop()
     // ---------------------------------------------------------------------------------------------------------------------------------
 
     long readingInterval = (currentTemp > 0 && currentRh > 0) ? ((long) 60000) : ((long) 8000); // shorter if ambient info was not obtained
-    if (timeElapsed > readingInterval)
+    if (timeElapsedReading > readingInterval)
     {
         Serial1.println("atrt");        // send command of getting environmental information
-        timeElapsed = 0;                // reset the counter to 0 so the counting starts over...
+        timeElapsedReading = 0;                // reset the counter to 0 so the counting starts over...
 
         // debugging area
         //Particle.publish("o2sensor", String(Time.hour()) + ":" + String(Time.minute()));
@@ -712,15 +722,45 @@ void loop()
       if(lastCommandSentInMinutes >= REMAIN_MODE_TIME)
       {
         // .....................................................
-        // if currentTemp > DH_HIGH or currentTemp < DH_LOW --> use AC mode
-        if((currentTemp > DH_HIGH || currentTemp < DH_LOW) && currentMode != MODE_COOLING)
+        // DH need AC is priority
+        if(DHNeedAC && currentTemp <= DH_NEED_AC_HIGH)
         {
-          daikin_ac_on_set_temp(currentACsetting);
-        }
-        else if(currentMode != MODE_DEHUMIDIFIER)
-        {
-          daikin_dehumidifier_on();
-        }
+          // if currentTemp > DH_HIGH or currentTemp < DH_LOW --> use AC mode
+          if((currentTemp > DH_HIGH || currentTemp < DH_LOW) && currentMode != MODE_COOLING)
+          {
+            daikin_ac_on_set_temp(currentACsetting);
+          }
+          else if(currentMode != MODE_DEHUMIDIFIER)
+          {
+            daikin_dehumidifier_on();
+
+            // reset DH temperature check
+            timeElapsedDHCheck = 0;
+            DHNeedAC = false;
+          }
+
+          // during DH mode, make sure the temperature is decreasing
+          if(currentMode == MODE_DEHUMIDIFIER)
+          {
+            if(timeElapsedDHCheck > ((long) ((long) DH_NEED_AC_TIME * (long) 60000)))
+            {
+              if(currentTemp > DH_NEED_AC_HIGH)
+              {
+                // switch to AC until the temperature is reached
+                daikin_ac_on_set_temp(currentACsetting);
+                DHNeedAC = true;
+
+                Particle.publish("o2sensor", "DH_need_AC");
+              }
+              else
+              {
+                // only count consecutive higher temperature
+                timeElapsedDHCheck = 0;
+              }              
+            }
+          }
+
+        } // end if(DHNeedAC && currentTemp <= DH_NEED_AC_HIGH)
 
         // otherwise remain the same setting
 
